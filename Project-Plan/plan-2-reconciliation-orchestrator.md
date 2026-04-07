@@ -94,12 +94,24 @@ Key sections the orchestrator prompt must include:
 7. **Phase 4**: Run `reconcile_results.py`
 8. **Phase 5**: Report + append to `verification-log.md`
 9. **Phase 6**: Run `generate_review_dashboard.py` (from Plan 3)
-10. **Phase 7**: Process human reviewer's exported notes JSON
-11. **Phase 8**: Cleanup (screenshots, batch prompts, dashboard)
+10. **Phase 7** *(Optional)*: Process human reviewer's exported notes JSON; optionally generate adjudicated CSVs via LLM
+11. **Phase 8** *(Optional)*: Cleanup (screenshots, batch prompts, dashboard)
 
 Resumability: check for existing `batch-NN-results.json` before re-spawning.
 
-Screenshot lifecycle: do NOT delete until after human review (Phase 8).
+Screenshot lifecycle: do NOT delete until after human review (Phase 8), or immediately after Phase 5 if no dashboard was requested.
+
+### Phase 7 adjudicated output (optional, on user request)
+
+When the user provides the exported reviewer notes JSON and requests adjudicated output, the Orchestrator uses the LLM to:
+
+1. Read `final-segment-limits.csv` and the reviewer's exported JSON
+2. For each endpoint where the reviewer marked "Disagree" with corrective notes, determine the reviewer's intended final limit from their notes
+3. Produce `_temp/visual-review/human-reviewed-segment-limits.csv` — same schema as `final-segment-limits.csv` but with overridden rows updated (Resolution set to `human_override`, Final-Limit set to reviewer's correction)
+4. Regenerate a collapsed CSV: `_temp/visual-review/human-reviewed-segment-limits-collapsed.csv`
+5. Append a "Human Review" section to `verification-log.md` summarizing which endpoints were overridden and why
+
+This step is only performed on explicit user request. The Phase 4 outputs (`final-segment-limits.csv` and `final-segment-limits-collapsed.csv`) remain the default authoritative deliverables.
 
 ---
 

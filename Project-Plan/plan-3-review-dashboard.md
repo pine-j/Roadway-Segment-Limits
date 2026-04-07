@@ -26,7 +26,7 @@ Click any row to switch to case view.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  ◀ Prev  │  Case 17 of 304: FM 730-A / To  │  Next ▶  │ Jump to… │
+│  ◀ Prev  │  Case 17 of N: FM 730-A / To  │  Next ▶  │ Jump to… │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │  ┌─── Close Screenshot ───┐  ┌─── Context Screenshot ───┐          │
@@ -76,16 +76,16 @@ Click any row to switch to case view.
 - Prev/Next arrows to step through cases
 - Jump-to dropdown for any segment
 - Filter buttons: Show All / Disagreements Only / Conflicts Only / Unreviewed
-- Progress indicator: "Reviewed 42 of 304 endpoints"
+- Progress indicator: "Reviewed X of N endpoints" (counts derived from data)
 
 **Interactive map embed**:
 - iframe pointing to `https://pine-j.github.io/Roadway-Segment-Limits/`
-- When switching cases, call into the iframe:
+- When switching cases, attempt to call into the iframe:
   ```javascript
   iframe.contentWindow.__selectAndZoomSegment("FM 730-A");
   iframe.contentWindow.__mapView.goTo({center: [lon, lat], zoom: 17});
   ```
-- If cross-origin blocks this, fall back to displaying coordinates for manual navigation
+- **Cross-origin limitation**: When the dashboard is opened from `file://` or `localhost`, the browser will block `contentWindow` access to the GitHub Pages iframe. The dashboard **must** implement a fallback that displays "Navigate to: [lon, lat] zoom 17" with a copy button. To get auto-navigation, serve both dashboard and web app from the same origin (e.g., `localhost:8080`).
 - Human can freely zoom, pan, inspect
 
 **Per-case reviewer notes**:
@@ -113,7 +113,8 @@ Click any row to switch to case view.
     ]
   }
   ```
-- This JSON gets passed to the Orchestrator Agent in Phase 7
+- This JSON gets passed to the Orchestrator Agent in Phase 7 (optional)
+- If the user requests adjudicated output, the Orchestrator uses an LLM to apply reviewer overrides and produce `human-reviewed-segment-limits.csv`
 
 **Summary bar** (always visible at top):
 - Total cases, reviewed count, agree/disagree/needs-discussion counts
@@ -162,7 +163,7 @@ const REVIEW_DATA = [
 
 1. The Python script reads the CSVs and JSONs, assembles the `REVIEW_DATA` array, and injects it into an HTML template string
 2. CSS should be clean and functional — focus on readability, not aesthetics
-3. The map iframe may face cross-origin restrictions for `__selectAndZoomSegment()` — implement a fallback that shows "Navigate to: [-97.489, 33.198] zoom 17" text
+3. The map iframe **will** face cross-origin restrictions for `__selectAndZoomSegment()` when opened from `file://` or a different origin — implement a try/catch fallback that shows "Navigate to: [-97.489, 33.198] zoom 17" text with a copy button
 4. `localStorage` key should include a run identifier (e.g., date) so notes from different runs don't collide
 
 ---

@@ -39,7 +39,7 @@ This pipeline uses multiple AI agents with **isolated contexts** to ensure indep
 - **Anti-bias by architecture** — The Visual Review Agents literally cannot access `heuristic-results.csv` because it is not in their context. Context isolation makes bias impossible, not just inadvisable.
 - **Right model for each job** — The Heuristic Agent just runs scripts; a lighter, cheaper model works. Visual Review needs heavy vision/reasoning. The Orchestrator needs heavy reasoning for reconciliation.
 - **Parallelism** — Multiple Visual Review Agents run simultaneously on different endpoint batches, each with independent context.
-- **No human confirmation needed** — The Orchestrator runs the full pipeline autonomously.
+- **Autonomous by default** — The Orchestrator runs Phases 1–5 without human confirmation. Phases 6–8 (dashboard, human review, cleanup) are optional and only run if the user wants them.
 
 ### Data flow between agents
 
@@ -77,9 +77,11 @@ This pipeline uses multiple AI agents with **isolated contexts** to ensure indep
                     with BOTH inputs
                            │
                            ▼
-              final-segment-limits.csv (endpoint-level audit)
-              final-segment-limits-collapsed.csv (per-segment)
+              final-segment-limits.csv (endpoint-level audit — AUTHORITATIVE)
+              final-segment-limits-collapsed.csv (per-segment — AUTHORITATIVE)
 ```
+
+> **Authoritative outputs**: Phase 4's `final-segment-limits.csv` and `final-segment-limits-collapsed.csv` are the pipeline's deliverables. Phases 6–8 (dashboard generation, human review, cleanup) are **optional** quality-check steps. If a human reviewer does provide feedback, Phase 7 can optionally use an LLM to produce adjudicated CSVs incorporating the reviewer's overrides — but the Phase 4 outputs stand on their own.
 
 ### Pipeline phases by agent
 
@@ -91,9 +93,9 @@ This pipeline uses multiple AI agents with **isolated contexts** to ensure indep
 | 3 | Visual Review Agents (x N, parallel) | Screenshot + evaluate endpoints, write batch-NN-results.json |
 | 4 | Orchestrator | Runs `reconcile_results.py` → final CSVs |
 | 5 | Orchestrator | Generates summary report + appends to verification-log.md |
-| 6 | Orchestrator | Runs `generate_review_dashboard.py` → review-dashboard.html |
-| 7 | Orchestrator | Processes human reviewer's exported notes JSON |
-| 8 | Orchestrator | Cleanup prompt (screenshots, batch prompts, dashboard) |
+| 6 | Orchestrator | *(Optional)* Runs `generate_review_dashboard.py` → review-dashboard.html |
+| 7 | Orchestrator | *(Optional)* Processes human reviewer's exported notes JSON; can generate adjudicated output via LLM |
+| 8 | Orchestrator | *(Optional)* Cleanup prompt (screenshots, batch prompts, dashboard) |
 
 ### `_temp/visual-review/` directory structure
 
@@ -121,7 +123,7 @@ _temp/visual-review/
 ```
 
 **Lifecycle**:
-- `screenshots/` — Delete after human review of the dashboard is complete (Phase 8). Estimated ~120MB (304 endpoints x 2 x ~200KB). The dashboard references screenshots via relative paths, so they must stay until the reviewer is done.
+- `screenshots/` — Delete after human review of the dashboard is complete (Phase 8), or immediately after Phase 5 if dashboard is not requested. Estimated ~120MB (~2 screenshots per endpoint x ~200KB each). The dashboard references screenshots via relative paths, so they must stay until the reviewer is done.
 - `batch-prompts/` — Delete after all batches complete. These are generated artifacts, not source files.
 - `heuristic-results.csv`, `visual-review-manifest.json`, `batch-results/` — Keep alongside `final-segment-limits.csv` and `final-segment-limits-collapsed.csv` for auditability.
 
@@ -130,17 +132,10 @@ Everything is under `_temp/` so the whole pipeline's intermediate state can be w
 **Cleanup protocol**:
 
 At the **start** of each run, before Phase 1, the orchestrator checks if `_temp/visual-review/` already exists with files from a previous run. If it does:
+- **Default (autonomous)**: Log the stale files found, delete `screenshots/`, `batch-prompts/`, and `batch-results/`, then proceed. The heuristic results and manifest will be regenerated.
+- **If `--resume` flag is passed**: Skip cleanup and resume from where the last run left off (check for existing `batch-NN-results.json` to determine completed batches).
 
-> "Found leftover files from a previous run in `_temp/visual-review/`. These may bloat context and cause confusion. Can I delete the following before starting fresh?
-> - `screenshots/` (XX files, ~XXmb)
-> - `batch-prompts/` (XX files)
-> - `batch-results/` (XX files)
-> 
-> The heuristic-results.csv and manifest will be regenerated. Type 'yes' to clean up, or 'keep' to resume from where the last run left off."
-
-At the **end** of a successful run (after Phase 5 report):
-
-> "Pipeline complete. Delete temporary files (screenshots, batch prompts)? The final CSVs (`final-segment-limits.csv` and `final-segment-limits-collapsed.csv`) and batch results will be preserved for auditability. Type 'yes' to clean up."
+At the **end** of a successful run (after Phase 5 report), temporary files (screenshots, batch prompts) are kept only if the user requested dashboard generation (Phase 6). Otherwise they can be cleaned up immediately.
 
 This prevents stale files from a crashed/incomplete previous run from accumulating and bloating context in future runs.
 
@@ -213,7 +208,7 @@ def confidence_bucket(score: float) -> str:
 
 Pattern: Import `identify_segment_limits` as a module (same approach as `trusted_review_eval.py` line 29-36).
 
-**Inputs**: A CSV of new segment names to process (or run on all segments).
+**Inputs**: A CSV with a column containing segment names (e.g., Amy's review sheet `FTW-Segments-Limits-Amy.csv` with its `Readable_SegID` column, or a simple one-column CSV of segment names). The script auto-detects the segment name column. Pass `--all` to run on all segments in the ArcGIS layer instead of a CSV subset.
 
 **Outputs**:
 
@@ -490,15 +485,17 @@ window.__mapView = view;
 // Readiness helper — waits for both the map view AND the segment list to load.
 // state is closure-scoped, so this must be defined inside the require() callback.
 window.__waitForSegments = function() {
-  return new Promise((resolve) => {
-    const check = () => {
-      if (state.segments && state.segments.length > 0) {
-        resolve(state.segments.length);
-      } else {
-        setTimeout(check, 500);
-      }
-    };
-    check();
+  return view.when().then(() => {
+    return new Promise((resolve) => {
+      const check = () => {
+        if (state.segments && state.segments.length > 0 && !view.updating) {
+          resolve(state.segments.length);
+        } else {
+          setTimeout(check, 500);
+        }
+      };
+      check();
+    });
   });
 };
 
@@ -716,10 +713,11 @@ This is enforced by architecture (separate agent contexts), not by instruction.
 
 ### Phase 0: Pre-flight cleanup
 Check if `_temp/visual-review/` exists with files from a previous run.
-If so, ask the user whether to delete stale files (screenshots, batch prompts, 
-batch results) or resume from where the last run left off. Do NOT proceed 
-with Phase 1 until stale files are resolved — they will bloat context and 
-may cause agents to confuse old results with new ones.
+If so, log the stale files found and delete `screenshots/`, `batch-prompts/`,
+and `batch-results/` before starting fresh. The heuristic results and manifest
+will be regenerated. If the user passed `--resume`, skip cleanup and resume
+from where the last run left off (check for existing `batch-NN-results.json`
+to determine which batches are already complete).
 
 ### Phase 1: Dispatch Heuristic Agent
 Spawn the Heuristic Agent (lighter model) with instructions to run:
@@ -782,7 +780,7 @@ This merges heuristic + visual results into:
    This file is NEVER deleted. It persists across all runs and builds the 
    institutional memory of where the heuristic model fails and how to improve it.
 
-### Phase 6: Generate Human Review Dashboard
+### Phase 6: Generate Human Review Dashboard *(Optional — only if user requests review)*
 ```bash
 python Scripts/generate_review_dashboard.py
 ```
@@ -796,28 +794,35 @@ for the full specification.
 Tell the user:
 > "Review dashboard generated. Open `_temp/visual-review/review-dashboard.html` 
 > in your browser. When you're done reviewing, export your notes using the 
-> 'Export Notes' button — I can then process them."
+> 'Export Notes' button — I can then process them to generate adjudicated output."
 
-### Phase 7: Process Human Review Notes
+### Phase 7: Process Human Review Notes *(Optional — only if the user provides exported notes)*
 When the user provides the exported notes JSON from the dashboard:
 1. Read the reviewer's notes for each case
 2. Cross-reference with the reconciliation results
 3. Update `verification-log.md` with the human reviewer's observations
 4. Identify cases where the human disagrees with the Orchestrator's decision
 5. Suggest specific heuristic improvements based on the human's input
+6. **If the user requests adjudicated output**: Use the LLM to apply the reviewer's
+   overrides (cases marked "Disagree" with corrective notes) to the Phase 4 CSVs
+   and produce `_temp/visual-review/human-reviewed-segment-limits.csv` and a
+   regenerated collapsed CSV. The LLM reads the reviewer's notes, determines the
+   correct final limit for each overridden endpoint, and writes the updated rows.
+   This step is only performed on explicit user request — the Phase 4 outputs
+   remain the default authoritative deliverables.
 
-### Phase 8: Cleanup
-Ask the user before deleting:
+### Phase 8: Cleanup *(Optional — only if dashboard was generated)*
+Delete temporary files that are no longer needed:
 - `_temp/visual-review/screenshots/` (~120MB)
 - `_temp/visual-review/batch-prompts/`
-- `_temp/visual-review/review-dashboard.html` (after human review is complete)
+- `_temp/visual-review/review-dashboard.html`
+
 Keep `heuristic-results.csv`, `batch-results/`, `visual-review-manifest.json`, 
 `final-segment-limits.csv`, and `final-segment-limits-collapsed.csv` for auditability.
-If user says "delete all", remove the entire `_temp/visual-review/` directory
-for a fresh start next run.
 
 **Important**: Do NOT delete screenshots until AFTER the human has finished 
 reviewing the dashboard — the dashboard references them via relative paths.
+If no dashboard was generated, screenshots can be cleaned up after Phase 5.
 
 **NEVER delete `verification-log.md`** — it lives outside `_temp/` 
 and persists across all runs. This is the long-term learning document.
@@ -863,7 +868,7 @@ Reads `final-segment-limits.csv`, `heuristic-results.csv`, `batch-results/*.json
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  ◀ Prev  │  Case 17 of 304: FM 730-A / To  │  Next ▶  │ Jump to… │
+│  ◀ Prev  │  Case 17 of N: FM 730-A / To  │  Next ▶  │ Jump to… │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │  ┌─── Close Screenshot ───┐  ┌─── Context Screenshot ───┐          │
@@ -920,16 +925,17 @@ Reads `final-segment-limits.csv`, `heuristic-results.csv`, `batch-results/*.json
 - Prev/Next arrows to step through cases
 - Jump-to dropdown for any segment
 - Filter buttons: Show All / Disagreements Only / Conflicts Only / Unreviewed
-- Progress indicator: "Reviewed 42 of 304 endpoints"
+- Progress indicator: "Reviewed X of N endpoints" (counts derived from data)
 
 **Interactive map embed**:
 - iframe pointing to `https://pine-j.github.io/Roadway-Segment-Limits/`
-- When switching cases, the dashboard calls into the iframe:
+- When switching cases, the dashboard attempts to call into the iframe:
   ```javascript
   iframe.contentWindow.__selectAndZoomSegment("FM 730-A");
   // then
   iframe.contentWindow.__mapView.goTo({center: [lon, lat], zoom: 17});
   ```
+- **Cross-origin limitation**: If the dashboard is opened from `file://` or `localhost`, the browser will block `contentWindow` access to the GitHub Pages iframe. In that case, fall back to displaying "Navigate to: [lon, lat] zoom 17" text with a copy button. To get auto-navigation working, serve both the dashboard and the web app from the same origin (e.g., both from `localhost:8080`).
 - Human can freely zoom, pan, and inspect the map while reviewing
 
 **Per-case reviewer notes**:
@@ -999,7 +1005,7 @@ const REVIEW_DATA = [
 
 Screenshots are referenced via **relative paths** (not base64) — the HTML file lives in `_temp/visual-review/` alongside the `screenshots/` directory. This keeps the HTML file small (~200KB) while supporting 600+ screenshots.
 
-The map iframe uses the hosted web app URL. Cross-origin restrictions may prevent the `__selectAndZoomSegment()` call from working directly in the iframe — if so, the dashboard falls back to displaying the endpoint coordinates for manual navigation. The `app.js` already has `window.__mapView` exposed, and if the iframe origin matches, programmatic navigation works.
+The map iframe uses the hosted web app URL. Cross-origin restrictions **will** block `contentWindow` access when the dashboard is opened from `file://` or a different origin than GitHub Pages. The dashboard must implement a fallback that displays endpoint coordinates with a copy button for manual navigation. To enable auto-navigation, serve both the dashboard and web app from the same origin (e.g., `localhost:8080`).
 
 ### Why a single HTML file
 
@@ -1039,13 +1045,19 @@ The map iframe uses the hosted web app URL. Cross-origin restrictions may preven
 
 ## Scale Estimates
 
-- 148 continuous segments x 2 endpoints = 296 endpoints
-- 2 gap segments x ~4 endpoints each (2 pieces x 2 sides) = ~8 endpoints
-- Total: ~304 endpoints
+> All counts below are approximate for the current 150-segment dataset and will vary as segments are added/removed. Actual counts are derived from the manifest at runtime.
+
+- ~148 continuous segments x 2 endpoints = ~296 endpoints
+- ~2 gap segments x ~4 endpoints each (2 pieces x 2 sides) = ~8 endpoints
+- Total: ~304 endpoints (derived from manifest — do not hardcode)
 - ~15 endpoints per batch = ~21 batches
 - Each batch: ~15-25 min per Visual Review Agent session
 - Total: ~5-8 hours of AI time (can run batches in parallel across sessions)
 - With `window.__mapView.goTo()`, per-endpoint time drops from ~90s to ~25-30s
+
+## Runtime Prerequisites
+
+- **Network access required**: The heuristic engine (`identify_segment_limits.py`) queries live ArcGIS feature services for segment geometry, county boundaries, and roadway inventory data. The manifest generator (Task D) inherits these dependencies. Local label and roadway caches reduce but do not eliminate network calls. Implementation and testing will fail in network-restricted environments.
 
 ---
 

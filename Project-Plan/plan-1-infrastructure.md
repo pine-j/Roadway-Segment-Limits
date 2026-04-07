@@ -16,7 +16,8 @@ This plan covers Steps 1–4 and the batch prompt template (Step 3) from the mas
 
 ## Dependencies
 
-- **None** — this is the foundation. Plans 2 and 3 depend on this.
+- **Plan dependencies**: None — this is the foundation. Plans 2 and 3 depend on this.
+- **Runtime**: Network access to ArcGIS feature services is required. The manifest generator (Task D) imports `identify_segment_limits.py`, which queries live services for segment geometry, county boundaries, and roadway inventory. Local label and roadway caches reduce but do not eliminate network calls.
 
 ## Parallel execution
 
@@ -91,15 +92,17 @@ window.__mapView = view;
 // After syncSelectedGraphics and zoomToSegments are defined (~line 560)
 
 window.__waitForSegments = function() {
-  return new Promise((resolve) => {
-    const check = () => {
-      if (state.segments && state.segments.length > 0) {
-        resolve(state.segments.length);
-      } else {
-        setTimeout(check, 500);
-      }
-    };
-    check();
+  return view.when().then(() => {
+    return new Promise((resolve) => {
+      const check = () => {
+        if (state.segments && state.segments.length > 0 && !view.updating) {
+          resolve(state.segments.length);
+        } else {
+          setTimeout(check, 500);
+        }
+      };
+      check();
+    });
   });
 };
 
@@ -134,7 +137,7 @@ Key details:
 
 Import `identify_segment_limits` as module (follow `trusted_review_eval.py` pattern, line 29-36).
 
-**Inputs**: A CSV of segment names to process (or run on all segments).
+**Inputs**: A CSV with a column containing segment names (e.g., Amy's review sheet `FTW-Segments-Limits-Amy.csv` with its `Readable_SegID` column, or a simple one-column CSV of segment names). The script auto-detects the segment name column. Pass `--all` to run on all segments in the ArcGIS layer instead of a CSV subset.
 
 **Outputs**:
 
