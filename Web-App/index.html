@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FTW Segment Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="https://js.arcgis.com/4.32/esri/themes/light/main.css" />
+    <link rel="stylesheet" href="./styles.css?v=2026-04-06-2" />
+    <script src="https://js.arcgis.com/4.32/"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="panel filters-panel">
+        <div class="panel-header">
+          <p class="eyebrow">FTW Dashboard</p>
+          <h1>Filter segments</h1>
+          <p class="panel-copy">
+            Choose a highway system to narrow the FTW segment list and map.
+          </p>
+        </div>
+        <div class="category-list" id="category-list" aria-label="Highway system filters"></div>
+      </aside>
+
+      <section class="panel segments-panel">
+        <div class="panel-header">
+          <p class="eyebrow">Selection</p>
+          <h2>FTW segments</h2>
+          <p class="panel-copy">
+            Check multiple segments as needed. Click a segment row to focus the map on its limits.
+          </p>
+        </div>
+
+        <div class="toolbar">
+          <label class="search-field" for="segment-search">
+            <span class="sr-only">Search segments</span>
+            <input
+              id="segment-search"
+              type="search"
+              placeholder="Search segment, highway, or county"
+              autocomplete="off"
+            />
+          </label>
+
+          <div class="toolbar-actions">
+            <button id="clear-selection" class="ghost-button" type="button">Clear</button>
+            <button id="zoom-selected" class="primary-button" type="button">Zoom selected</button>
+          </div>
+        </div>
+
+        <div class="summary-strip">
+          <div class="summary-card">
+            <span class="summary-label">Visible</span>
+            <strong id="visible-count">0</strong>
+          </div>
+          <div class="summary-card">
+            <span class="summary-label">Selected</span>
+            <strong id="selected-count">0</strong>
+          </div>
+        </div>
+
+        <div class="segment-list" id="segment-list" aria-live="polite"></div>
+      </section>
+
+      <main class="map-panel">
+        <div class="map-heading">
+          <div>
+            <p class="eyebrow">Map</p>
+            <h2>FTW Segments + TxDOT Roadways</h2>
+          </div>
+          <div class="map-hint">
+            Click a segment to focus it. Click a roadway to view the route name.
+          </div>
+        </div>
+
+        <div id="viewDiv" class="map-view" aria-label="Map view"></div>
+      </main>
+    </div>
+
+    <script src="./app.js?v=2026-04-06-2"></script>
+  </body>
+</html>

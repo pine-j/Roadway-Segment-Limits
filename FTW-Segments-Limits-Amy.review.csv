@@ -1,0 +1,151 @@
+﻿Segment,Segment-Direction,Limits-Amy,Limts-From,Limits-To,Segment-Type
+IH 820 - D,N to S,SH 26 to IH 30,SH 26,IH 30,Continuous
+US 287 - A,N to S,BU 287P to Johnson County Line,BU 287P,Johnson County Line,Continuous
+US 380 - A,W to E,BU 380F to Wise County Line,BU 380F,Wise County Line,Continuous
+FM 731 - A,N to S,IH 20 to 85m N of Tarrant County Line,IH 20,85m N of Tarrant County Line,Continuous
+FM 51 - H,N to S,FM 205 to US 67,FM 205,US 67,Continuous
+US 380 - B,W to E,SH 114 to BU 380F,SH 114,BU 380F,Continuous
+FM 51 - E,N to S,SH 171 to FM 167,SH 171,FM 167,Continuous
+FM 2280,N to S,CR 807 (FM 917) to BU 67M,CR 807 (FM 917),BU 67M,Continuous
+FM 4 - H,W to E,CR 1227 to SH 171,CR 1227,SH 171,Continuous
+FM 4 - E,W to E,FM 1189 to BU 377H,FM 1189,BU 377H,Continuous
+SH 183 - B,W to E,US 377 to IH 820,US 377,IH 820,Continuous
+FM 219 - B,N to S,SH 6 to Erath County Line,SH 6,Erath County Line,Continuous
+FM 2257,W to E,SH 199 to FM 730,SH 199,FM 730,Continuous
+SH 121 - B,N to S,E of S Main St to IH 820,E of S Main St,IH 820,Continuous
+IH 20 - B,W to E,"E of the Benbrook Blvd (US 377), IH 20 and SW Loop 820 Interchange to IH 35W","E of the Benbrook Blvd (US 377), IH 20 and SW Loop 820 Interchange",IH 35W,Continuous
+FM 4 - G,W to E,FM 167 to CR 1227,FM 167,CR 1227,Continuous
+US 287 - B,N to S,IH 20 to BU 287P,IH 20,BU 287P,Continuous
+SH 183,W to E,IH 20 to Tarrant County Line,IH 20,Tarrant County Line,Continuous
+BU 287P - B,N to S,IH 820 Interchange to Grove St,IH 820 Interchange,Grove St,Continuous
+US 81/287 - B,N to S,N of FM 407 to Wise County Line,N of FM 407,Wise County Line,Continuous
+IH 820 - A,N to S,SH 199 to IH 20,SH 199,IH 20,Continuous
+SS 280,W to E,Grove St to N South Fwy (IH 35W),Grove St,N South Fwy (IH 35W),Continuous
+FM 2331 - B,N to S,N SH 171 to US 67,N SH 171,US 67,Gap
+IH 35W - D,N to S,N of SH 183 to S of E Altamesa Blvd,N of SH 183,S of E Altamesa Blvd,Continuous
+IH 35W - A,N to S,N of US 67 to Johnson County Line,N of US 67,Johnson County Line,Continuous
+FM 730 - D,N to S,Northwest Pkwy (SH 199)_ Frontage Rd to Fort Worth Hwy (SH 180),Northwest Pkwy (SH 199)_ Frontage Rd,Fort Worth Hwy (SH 180),Continuous
+SH 6 - B,W to E,FM 847 to US 281,FM 847,US 281,Continuous
+FM 56 - C,N to S,FM 51 to W Elm St (SH 144),FM 51,W Elm St (SH 144),Continuous
+US 377 - D,N to S,100m E of Parker County Line to SW of BU 377F,100m E of Parker County Line,SW of BU 377F,Continuous
+IH 30 - B,W to E,SH 199 to IH 820,SH 199,IH 820,Continuous
+IH 20 - D,W to E,SH 171 to IH 30,SH 171,IH 30,Continuous
+FM 2264,N to S,Left Frontage US 81 to FM 407,Left Frontage US 81,FM 407,Continuous
+FM 1810 - B,W to E,SH 101 to US 81/287,SH 101,US 81/287,Continuous
+FM 157 - A,N to S,SH 121 to SH 180,SH 121,SH 180,Continuous
+SH 360,N to S,SH 121 to N of W Camp Wisdom Rd,SH 121,N of W Camp Wisdom Rd,Continuous
+SH 183 - A,W to E,SH 121 to Tarrant County Line,SH 121,Tarrant County Line,Continuous
+IH 35W - B,N to S,SH 174 to N of US 67,SH 174,N of US 67,Continuous
+SH 183 - C,W to E,Tyra Ln to US 377,Tyra Ln,US 377,Continuous
+SH 183 - D,N to S,Shenna Blvd to IH 20,Shenna Blvd,IH 20,Continuous
+IH 35W - C,N to S,S of E Altamesa Blvd to SH 174,S of E Altamesa Blvd,SH 174,Continuous
+SS 465,N to S,SH 183 to IH 20,SH 183,IH 20,Continuous
+FM 917 - B,W to E,Chisholm Trail Pkwy (TL 38) to IH 35W,Chisholm Trail Pkwy (TL 38),IH 35W,Continuous
+SS 303,W to E,Stalcup Rd/Winnie St to Tarrant County Line,Stalcup Rd/Winnie St,Tarrant County Line,Continuous
+US 377 - C,W to E,Sunset Acres Ct to SW of BU 377F,Sunset Acres Ct,SW of BU 377F,Continuous
+FM 51 - F,N to S,FM 167 to FM 4,FM 167,FM 4,Continuous
+FM 2481 - A,N to S,US 377 to US 67,US 377,US 67,Continuous
+FM 3433,N to S,Right Frontage US 81 to FM 718,Right Frontage US 81,FM 718,Continuous
+FM 156 - B,N to S,US 81/287 to IH 820,US 81/287,IH 820,Continuous
+BU 287P - A,N to S,US 81/287 to IH 820 Interchange,US 81/287,IH 820 Interchange,Continuous
+FM 407,W to E,Right Frontage US 81 to Wise County Line,Right Frontage US 81,Wise County Line,Continuous
+FM 730 - B,N to S,BU 81D to SH 114,BU 81D,SH 114,Continuous
+RM 2871,N to S,IH 30 to US 377,IH 30,US 377,Continuous
+BS 114J,W to E,Left Frontage US 81 to BU 81E,Left Frontage US 81,BU 81E,Continuous
+BU 287P - C,N to S,IH 35W to IH 20,IH 35W,IH 20,Continuous
+FM 113 - B,N to S,US 180 to IH 20,US 180,IH 20,Continuous
+FM 1156 - B,N to S,US 380 to SH 199,US 380,SH 199,Continuous
+FM 1187 - A,N to S,Left Frontage IH 20 to US 377,Left Frontage IH 20,US 377,Continuous
+FM 1187 - B,W to E,US 377 to IH 35W,US 377,IH 35W,Continuous
+FM 1187 - C,W to E,IH 35W to BU 287P,IH 35W,BU 287P,Continuous
+FM 1189,N to S,Left Frontage IH 20 to US 281,Left Frontage IH 20,US 281,Gap
+FM 1542,W to E,SH 199 to FM 730,SH 199,FM 730,Continuous
+FM 156 - A,N to S,Tarrant County Line to US 81/287,Tarrant County Line,US 81/287,Continuous
+FM 156 - C,N to S,IH 820 to BU 287P,IH 820,BU 287P,Continuous
+FM 157 - B,N to S,SH 180 to US 287,SH 180,US 287,Continuous
+FM 1810 - A,W to E,SH 59 to SH 101,SH 59,SH 101,Continuous
+FM 1821,N to S,US 281 to FM 1195,US 281,FM 1195,Continuous
+FM 1886,W to E,FM 730 to SH 199,FM 730,SH 199,Continuous
+FM 1902,N to S,FM 1187 to FM 917,FM 1187,FM 917,Continuous
+FM 2123,N to S,SH 114 to FM 51,SH 114,FM 51,Continuous
+FM 219 - A,N to S,SH 108 to N Patrick St,SH 108,N Patrick St,Continuous
+FM 2210 - B,W to E,US 281 to FM 920,US 281,FM 920,Continuous
+FM 2256,N to S,US 281 to Fairview Rd,US 281,Fairview Rd,Continuous
+FM 2481 - B,N to S,US 67 to SH 220,US 67,SH 220,Continuous
+FM 2738 - A,N to S,Johnson County Line to FM 917,Johnson County Line,FM 917,Continuous
+FM 3325,N to S,FM 1886 to Left Frontage IH 20,FM 1886,Left Frontage IH 20,Continuous
+FM 3391,W to E,IH 35W to CR 529,IH 35W,CR 529,Continuous
+FM 4 - A,N to S,US 380 to SH 254,US 380,SH 254,Continuous
+FM 4 - B,N to S,SH 254 to US 180,SH 254,US 180,Continuous
+FM 4 - C,N to S,US 180 to IH 20,US 180,IH 20,Continuous
+FM 4 - D,W to E,IH 20 to FM 1189,IH 20,FM 1189,Continuous
+FM 4 - F,W to E,US 377 to FM 167,US 377,FM 167,Continuous
+FM 5,N to S,Left Frontage IH 20 to FM 1187,Left Frontage IH 20,FM 1187,Continuous
+FM 51 - C,N to S,SH 114 to SH 199,SH 114,SH 199,Continuous
+FM 51 - D,N to S,SH 199 to US 180,SH 199,US 180,Continuous
+FM 718,N to S,SH 114 to BU 287P,SH 114,BU 287P,Continuous
+FM 730 - A,N to S,Wise County Line to Walnut St,Wise County Line,Walnut St,Continuous
+FM 730 - C,N to S,SH 114 to Northwest Pkwy,SH 114,Northwest Pkwy,Continuous
+FM 847,W to E,SH 6 to FM 914,SH 6,FM 914,Continuous
+FM 914 - A,N to S,US 67/377 to SH 6,US 67/377,SH 6,Continuous
+FM 914 - B,N to S,SH 6 to Erath County Line,SH 6,Erath County Line,Continuous
+FM 917 - A,W to E,SH 171 to Chisholm Trail Pkwy (TL 38),SH 171,Chisholm Trail Pkwy (TL 38),Continuous
+FM 917 - C,W to E,IH 35W to SE of Lone Star Rd,IH 35W,SE of Lone Star Rd,Continuous
+FM 920 - B,N to S,SH 199 to FM 51,SH 199,FM 51,Continuous
+IH 20 - A,W to E,IH 35W to Tarrant County Line,IH 35W,Tarrant County Line,Continuous
+IH 20 - C,W to E,Right Frontage IH 30 to E of Benbrook Hwy Interchange,Right Frontage IH 30,E of Benbrook Hwy Interchange,Continuous
+IH 20 - E,W to E,US 281 to SH 171,US 281,SH 171,Continuous
+IH 20 - F,W to E,Erath County Line to US 281,Erath County Line,US 281,Continuous
+IH 30 - A,W to E,IH 820 to Tarrant County Line,IH 820,Tarrant County Line,Continuous
+IH 30 - C,W to E,IH 820 to SH 199,IH 820,SH 199,Continuous
+IH 30 - D,W to E,IH 20 to IH 820,IH 20,IH 820,Continuous
+IH 35W - F,N to S,Tarrant County Line to N of Basswood Blvd,Tarrant County Line,N of Basswood Blvd,Continuous
+IH 635,W to E,SH 121 to Tarrant County Line,SH 121,Tarrant County Line,Continuous
+IH 820 - B,W to E,SH 199 to IH 35W,SH 199,IH 35W,Continuous
+IH 820 - C,W to E,IH 35W to SH 26,IH 35W,SH 26,Continuous
+IH 820 - E,N to S,IH 30 to IH 20,IH 30,IH 20,Continuous
+SH 10,W to E,IH 820 to E Euless Blvd,IH 820,E Euless Blvd,Continuous
+SH 121 - C,W to E,IH 35W to SH 183,IH 35W,SH 183,Continuous
+SH 121,N to S,Tarrant County Line to IH 35W,Tarrant County Line,IH 35W,Continuous
+SH 16 - B,N to S,Palo Pinto County Line to SH 254,Palo Pinto County Line,SH 254,Continuous
+SH 171 - D,N to S,S of Old Airport Rd to Parker County Line,S of Old Airport Rd,Parker County Line,Continuous
+SH 171 - E,N to S,US 180 to S of Old Airport Rd,US 180,S of Old Airport Rd,Continuous
+SH 180 - A,W to E,IH 35W to IH 820,IH 35W,IH 820,Continuous
+SH 180 - B,W to E,IH 820 to Tarrant County Line,IH 820,Tarrant County Line,Continuous
+SH 180,W to E,IH 35W to Tarrant County Line,IH 35W,Tarrant County Line,Continuous
+FM 1195,N to S,US 180 to US 281,US 180,US 281,Continuous
+SH 199 - B,W to E,Parker County Line to Boyd Rd,Parker County Line,Boyd Rd,Continuous
+SH 199 - D,N to S,IH 820 to W Vickery Blvd,IH 820,W Vickery Blvd,Continuous
+SH 26 - B,N to S,SH 114 to SH 114,SH 114,SH 114,Continuous
+SH 360 - A,N to S,IH 30 to TL 360,IH 30,TL 360,Continuous
+SH 360 - B,N to S,N of SH 183 to IH 30,N of SH 183,IH 30,Continuous
+FM 1204,N to S,CR 2745 to FM 51,CR 2745,FM 51,Continuous
+SH 6 - A,W to E,Erath County Line to FM 847,Erath County Line,FM 847,Continuous
+FM 1220 - A,N to S,Peden Rd to IH 820,Peden Rd,IH 820,Continuous
+SH 6,W to E,Erath County Line to US 281,Erath County Line,US 281,Continuous
+SL 182,W to E,SH 199 to FM 51,SH 199,FM 51,Continuous
+FM 1220 - B,W to E,Ephriham Ave (SH 183) to NW Loop 820 Service Rd W,Ephriham Ave (SH 183),NW Loop 820 Service Rd W,Continuous
+SS 303 - B,W to E,FM 157 to Tarrant County Line,FM 157,Tarrant County Line,Continuous
+FM 157 - C,N to S,Left Frontage US 287 to Johnson County Line,Left Frontage US 287,Johnson County Line,Continuous
+SS 347,W to E,N Grove St to IH 35W,N Grove St,IH 35W,Continuous
+FM 2331 - A,N to S,Johnson County Line to SH 171,Johnson County Line,SH 171,Continuous
+SS 580,W to E,IH 30 to US 377,IH 30,US 377,Continuous
+IH 35W - E,N to S,N of Basswood Blvd to N of SH 183,N of Basswood Blvd,N of SH 183,Continuous
+US 180,W to E,Palo Pinto County Line to Valley Trl,Palo Pinto County Line,Valley Trl,Continuous
+SH 171 - B,N to S,SE of CR 1010 to SH 174,SE of CR 1010,SH 174,Continuous
+US 287 - C,N to S,IH 35W to IH 820,IH 35W,IH 820,Continuous
+US 287,N to S,IH 35W to Johnson County Line,IH 35W,Johnson County Line,Continuous
+SH 171 - C,W to E,Hood County Line to SE of CR 1010,Hood County Line,SE of CR 1010,Continuous
+US 377 - E,N to S,Prevost St to 100m E of Tarrant County Line,Prevost St,100m E of Tarrant County Line,Continuous
+US 180 - C,W to E,S of E Bankhead Hwy to E of Holiday Hills Dr,S of E Bankhead Hwy,E of Holiday Hills Dr,Continuous
+US 377 - G,N to S,Tarrant County Line to SH 183,Tarrant County Line,SH 183,Continuous
+US 377,W to E,Glen Rose Rd (US 67) to Tarrant County Line,Glen Rose Rd (US 67),Tarrant County Line,Continuous
+US 180 - E,W to E,W of Ric Williamson Memorial Hwy to E of Valley Trl,W of Ric Williamson Memorial Hwy,E of Valley Trl,Continuous
+US 380,W to E,Jack County Line to Wise County Line,Jack County Line,Wise County Line,Continuous
+US 67 - H,W to E,IH 35W to Johnson County Line,IH 35W,Johnson County Line,Continuous
+US 81,N to S,Wise County Line to IH 35W,Wise County Line,IH 35W,Continuous
+US 81/287 - A,N to S,Tarrant County Line to IH 35W,Tarrant County Line,IH 35W,Continuous
+US 377 - F,N to S,SH 183 to IH 35W,SH 183,IH 35W,Continuous
+US 81/287 - C,N to S,FM 1810 to N of FM 407,FM 1810,N of FM 407,Continuous
+US 81/287 - D,N to S,Right Frontage US 81 to FM 1810,Right Frontage US 81,FM 1810,Continuous
+US 81/287 - E,N to S,Wise County Line to Right Frontage US 81,Wise County Line,Right Frontage US 81,Continuous
