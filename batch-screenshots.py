@@ -55,10 +55,18 @@ def parse_args():
     return parser.parse_args()
 
 
+MIN_SCREENSHOT_KB = 10  # Blank/uniform PNGs compress below this
+
+
 def save_data_url(data_url: str, path: Path):
     """Decode a data:image/png;base64,... URL and write the PNG file."""
     header, encoded = data_url.split(",", 1)
     path.write_bytes(base64.b64decode(encoded))
+
+
+def js_str(value: str) -> str:
+    """Safely encode a string for embedding in JavaScript source code."""
+    return json.dumps(value)
 
 
 INJECT_HELPERS = """
@@ -132,8 +140,7 @@ window.__navigateAndCapture = async function (segmentName, lon, lat, closeZoom, 
     closeZoom = closeZoom || 17;
     contextZoom = contextZoom || 15;
 
-    await window.__selectCorridorSegments(segmentName);
-
+    // Segment selection is handled by the caller — just navigate and capture
     await view.goTo({ center: [lon, lat], zoom: closeZoom }, { animate: false });
     await window.__waitForTiles(15000);
     var closeImg = await view.takeScreenshot({ width: 1920, height: 1080, format: "png" });
@@ -224,7 +231,7 @@ def main():
                     # Select segment (or corridor) if changed
                     if seg_name != current_segment:
                         result = page.evaluate(
-                            f"window.__selectCorridorSegments('{seg_name}')"
+                            f"window.__selectCorridorSegments({js_str(seg_name)})"
                         )
                         if not result:
                             print(f"       WARNING: Segment '{seg_name}' not found — capturing without highlight")
@@ -232,9 +239,9 @@ def main():
                             print(f"       Corridor: selected {result} sub-segments for '{seg_name}'")
                         current_segment = seg_name
 
-                    # Use the combined navigate-and-capture for efficiency
+                    # Navigate and capture (segment already selected above)
                     data = page.evaluate(
-                        f"window.__navigateAndCapture('{seg_name}', {lon}, {lat}, {args.close_zoom}, {args.context_zoom})"
+                        f"window.__navigateAndCapture({js_str(seg_name)}, {lon}, {lat}, {args.close_zoom}, {args.context_zoom})"
                     )
 
                     save_data_url(data["close"], close_path)
@@ -242,6 +249,16 @@ def main():
 
                     close_kb = close_path.stat().st_size / 1024
                     context_kb = context_path.stat().st_size / 1024
+
+                    # Detect blank screenshots (tiles failed to render)
+                    blank_warning = ""
+                    if close_kb < MIN_SCREENSHOT_KB:
+                        blank_warning += " BLANK-CLOSE"
+                    if context_kb < MIN_SCREENSHOT_KB:
+                        blank_warning += " BLANK-CONTEXT"
+                    if blank_warning:
+                        print(f"       WARNING:{blank_warning} — tiles may have failed to render")
+
                     print(f"       close: {close_kb:.0f}KB  context: {context_kb:.0f}KB")
                     captured += 1
 

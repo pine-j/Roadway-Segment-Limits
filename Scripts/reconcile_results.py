@@ -409,6 +409,7 @@ def write_outputs(
 
     final_columns = [
         "Segment",
+        "Direction",
         "Type",
         "Side",
         "Piece",

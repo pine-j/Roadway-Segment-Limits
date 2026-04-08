@@ -531,12 +531,9 @@ require([
     return screenshot.dataUrl;
   };
 
-  window.__navigateAndCapture = async function (segmentName, lon, lat, closeZoom, contextZoom) {
+  window.__navigateAndCapture = async function (_segmentName, lon, lat, closeZoom, contextZoom) {
     closeZoom = closeZoom || 17;
     contextZoom = contextZoom || 15;
-
-    await window.__selectAndZoomSegment(segmentName);
-
     await view.goTo({ center: [lon, lat], zoom: closeZoom }, { animate: false });
     await window.__waitForTiles(15000);
     var closeImg = await view.takeScreenshot({ width: 1920, height: 1080, format: "png" });
