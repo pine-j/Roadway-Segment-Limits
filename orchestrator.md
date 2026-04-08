@@ -248,25 +248,35 @@ affected batch range.
 Phase 3b is iterative: dispatch agents, collect results, recapture any bad
 screenshots, re-analyze — repeat until every endpoint has a clean result.
 
+#### CRITICAL: one sub-agent per batch
+
+Each batch MUST be processed by its own dedicated sub-agent. The Orchestrator
+must NOT attempt to analyze screenshots itself — it dispatches sub-agents and
+collects their results.
+
+**Why**: each batch has 15 endpoints × 2 screenshots = 30 images. Loading all
+images into a single agent's context causes out-of-memory crashes. Separate
+sub-agents get their own context windows that are released when they finish.
+
 #### Initial dispatch
 
 For each batch prompt file in `_temp/visual-review/batch-prompts/`:
 
 1. **Check resumability**: if `_temp/visual-review/batch-results/batch-NN-results.json`
-   already exists, skip that batch
+   already exists, skip that batch.
 2. **Verify screenshot prerequisites**: confirm that all screenshot files
    referenced in the batch prompt exist on disk and are non-empty. If any are
    missing, re-run `batch-screenshots.py` for that batch range before
    dispatching the sub-agent.
-3. **Spawn a sub-agent** with:
+3. **Spawn a dedicated sub-agent** for this batch with:
    - The batch prompt file content as its task (contains endpoint table with
      screenshot file paths, assessment criteria, and JSON output schema)
    - Read tool access (to view the screenshot image files)
-   - **Nothing else** — no heuristic files, no CSVs, no data files, no
-     Playwright MCP
+   - Write tool access (to write the results JSON)
+   - **Nothing else** — no heuristic files, no CSVs, no data files
 4. Each sub-agent will:
-   - For each endpoint: read the close and context screenshot files using the
-     Read tool (which displays images visually)
+   - For each endpoint: read the close screenshot, then the context screenshot,
+     assess, and move to the next endpoint. Do NOT pre-load all screenshots.
    - Assess each endpoint based on visible road labels, route shields, county
      boundaries, and segment highlight position
    - If a screenshot is unusable (blank, no segment highlight, labels
@@ -276,11 +286,14 @@ For each batch prompt file in `_temp/visual-review/batch-prompts/`:
      failed to render", "labels too small to read at zoom 17")
    - Write structured JSON to
      `_temp/visual-review/batch-results/batch-NN-results.json`
+   - Do NOT create intermediate files (cropped images, temp files, etc.)
+5. **Wait for the sub-agent to complete** and verify the results JSON was
+   written before dispatching the next batch.
 
-**Run sub-agents in waves of 3–5 batches at a time**, not all at once. Each
-sub-agent reads 15 endpoint pairs of screenshots (30 images) and produces
-detailed assessments — this uses significant context. Complete one wave, run
-the recapture loop, then start the next.
+**Run sub-agents sequentially or in small waves of 2–3 at a time**, not all
+at once. Each sub-agent reads 30 images — this consumes significant memory.
+Complete one wave, validate the outputs, run the recapture loop if needed,
+then start the next wave.
 
 Each sub-agent has its own isolated context and cannot see the other batches'
 results or any heuristic data.
