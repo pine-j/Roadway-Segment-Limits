@@ -60,6 +60,60 @@ The heuristic script is strong but not complete. Known failure modes include:
 The visual pass reads the rendered map, which exposes clues the data-driven
 heuristic cannot reliably infer.
 
+## Segment types and gap handling
+
+The input CSV contains two kinds of segment entries. Every script in the
+pipeline must handle both.
+
+### 1. Individual segments (suffixed): e.g., "IH 20 - B"
+
+These have a letter suffix and match exactly one feature in the ArcGIS layer.
+The heuristic script queries the feature geometry directly.
+
+- **No gap in geometry**: reported as `Continuous` with From/To limits at the
+  extremities
+- **Gap in geometry** (pieces separated by ≥200m after merging connected parts
+  within 50m): reported as `Gap` with per-piece limits. Each piece gets its
+  own From/To. Small artifact fragments (<600m and <5% of total length) are
+  dropped.
+
+### 2. Corridor segments (unsuffixed): e.g., "SH 360"
+
+These have no letter suffix. They represent the entire corridor, which may
+contain multiple sub-segments in the ArcGIS layer (e.g., "SH 360 - A",
+"SH 360 - B", "SH 360 - C").
+
+The heuristic script resolves these via route family fallback
+(`resolve_row_features()` in `identify_segment_limits.py`):
+
+1. No exact match for "SH 360" in ArcGIS → looks up all features in the
+   "SH 360" family → gets A, B, C sub-segments
+2. Chains them into a single oriented geometry
+   (`orient_feature_sequence()`)
+3. Merges contiguous sub-segments (gap <50m between endpoints)
+4. **If all sub-segments are contiguous** → dissolves into one mega-segment →
+   reported as `Continuous` with limits at the corridor extremities
+5. **If physical gaps remain (≥200m)** → reported as `Gap` with per-piece
+   limits for each contiguous leg. Limits are identified independently at
+   each piece's From and To endpoints.
+
+**Screenshot handling**: `batch-screenshots.py` uses
+`__selectCorridorSegments()` which tries exact match first, then selects all
+sub-segments in the family so the full corridor is highlighted in teal.
+
+**Reconciliation**: corridor entries keep the corridor name (e.g., "SH 360")
+throughout — matching happens on `(segment_name, side, piece)`, not on
+individual sub-segment names.
+
+### Gap detection thresholds (identify_segment_limits.py)
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `GAP_MERGE_THRESHOLD_M` | 50m | Merge connected parts closer than this |
+| `GAP_THRESHOLD_M` | 200m | Real gap — pieces separated by at least this |
+| `MIN_PIECE_LENGTH_M` | 600m | Drop artifact fragments shorter than this |
+| `MIN_PIECE_RATIO` | 5% | Drop artifacts smaller than 5% of total length |
+
 ## HARD REQUIREMENTS — violations invalidate the entire run
 
 ### 1. Screenshots must be real captures from the web app
@@ -325,12 +379,28 @@ For each new `batch-NN-results.json`:
      - Dense interchange with overlapping labels — zoom 19 + panned
      - Tiles failed to render — retry at same zoom
 
+     After recapturing, re-read the new screenshot and make a
+     determination. If still inconclusive, set `visual_confidence` to
+     `"low"` so reconciliation routes it to `conflict` for human review.
+
    This step is what makes the pipeline reliable. The visual sub-agents
    operate without heuristic context, so they can miss things the
    heuristic caught. The Orchestrator has the full picture and the
    screenshots — use both.
 
-6. **Also spot-check a sample of agreements** — for ~10% of endpoints
+6. **Gap and corridor-specific checks** — for Gap segments:
+   - Verify that each piece's From and To limits are different roads
+     (a piece shouldn't start and end at the same intersection)
+   - Check that the gap between pieces is visible in the screenshots
+     (the teal line should visibly stop and restart)
+   - For corridor segments (unsuffixed like "SH 360"): verify that all
+     sub-segments are highlighted in the screenshots (the full corridor
+     should be teal, not just one sub-segment)
+   - If a corridor screenshot only shows a single sub-segment highlighted,
+     the capture used the GitHub Pages version without corridor support.
+     Re-capture with `--local` flag.
+
+7. **Also spot-check a sample of agreements** — for ~10% of endpoints
    where visual and heuristic agree, open the screenshots and confirm the
    identified limit is actually visible. This catches cases where both
    passes are wrong for the same reason.

@@ -127,6 +127,16 @@ The selected segment is the **thick maroon/teal line**. Unselected segments
 are thinner and should be ignored. The endpoint is where the thick segment
 line terminates.
 
+**Segment types visible in screenshots:**
+- **Individual segments** (suffixed, e.g., "IH 20 - B"): one segment is
+  highlighted. Its endpoints are where the thick line starts/ends.
+- **Corridor segments** (unsuffixed, e.g., "SH 360"): the entire corridor is
+  highlighted — all sub-segments (A, B, C, etc.) show as one continuous thick
+  line. The endpoint is where the overall corridor line terminates.
+- **GAP segments**: the thick line has one or more visible breaks. Each
+  contiguous stretch is a "piece" with its own From/To endpoints. The Notes
+  column in the endpoint table indicates which piece and the total count.
+
 ## Workflow per endpoint
 
 For each row in the endpoint table:
@@ -169,9 +179,15 @@ For each row in the endpoint table:
 - A county line that is merely nearby should be noted in `reasoning` but not flagged as `county_boundary_at_endpoint`
 
 ### E. For GAP segments specifically
-- Does the segment line visibly end or restart here?
-- Is there a physical discontinuity in the road?
-- What roads bound the gap on each side?
+- Does the thick segment line visibly end or restart at this endpoint? You
+  should see the line terminating and a gap before the next piece begins.
+- Is the gap a real physical discontinuity, or does the road continue but
+  the segment highlight stops? (Both are valid — report what you see.)
+- What road or boundary is at this specific piece's endpoint? Each piece's
+  From and To limits are identified independently — do not assume they are
+  the same as another piece's limits.
+- If this is a corridor segment (unsuffixed name), the entire corridor is
+  highlighted. The gap should be visible as a break in the thick line.
 
 ## Endpoints
 
