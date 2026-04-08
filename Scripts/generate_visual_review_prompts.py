@@ -175,37 +175,89 @@ For each row in the endpoint table:
 
 ## What to look for at each endpoint
 
-### A. Read all visible road labels near the endpoint
-- Street name labels rendered along road lines (for example `W Vickery Blvd`, `E Euless Blvd`)
-- Route shields with numbers (for example `IH 30`, `SH 114`, `US 281`)
-- Local or alias names that appear on the map alongside route numbers
-- Report BOTH the local name AND the route number if both are visible
+### Understanding what a "limit" is
 
-### B. Identify which road is actually at the endpoint
-- The endpoint is where the thick segment line ends — which road crosses or meets the segment at that exact point?
-- A nearby road 200m away is not the limit
-- If multiple roads are near the endpoint, identify which one the segment line actually terminates at
-- Look carefully at frontage roads versus mainlines
+A segment limit is the **major highway, route, or county boundary** that
+defines where the segment starts or ends. Limits are expressed as:
+
+- **Route designations**: IH 30, US 287, SH 183, FM 731, BU 287P, SS 280
+- **County boundary lines**: Johnson County Line, Tarrant / Wise County Line
+- **Offsets from a route**: N of SH 183, S of E Altamesa Blvd
+
+A limit is almost NEVER a local residential street name. If you see a local
+street label (like "Dewey St" or "Sheridan Rd") near the endpoint, look for
+the **major route or highway that crosses at or near that same location**.
+The local street name may be a useful alias to report in `limit_alias`, but
+`limit_identification` should be the highway-level designation.
+
+**Priority order for `limit_identification`:**
+1. County boundary line (if the endpoint sits on a color-change boundary)
+2. Interstate highway (IH) crossing or interchange
+3. US highway crossing
+4. State highway (SH) crossing
+5. Farm-to-market road (FM/RM) crossing
+6. Business route (BU), State Spur (SS), or State Loop (SL)
+7. Named local road ONLY if no highway-level route is visible anywhere
+   near the endpoint — this is rare and should be flagged as
+   `visual_confidence: "low"`
+
+### A. Read all visible road labels near the endpoint
+- **Route shields with numbers** are the most important: look for the colored
+  shield graphics with route designations (IH 30, SH 114, US 281, FM 731).
+  These are the primary identifiers for limits.
+- Street name labels rendered along road lines (W Vickery Blvd, E Euless Blvd)
+  are secondary — they are local names or aliases.
+- Many highways have BOTH a route number and a local name. For example,
+  IH 35W may also be labeled "South Fwy", or SH 183 may show as
+  "Jacksboro Hwy". Report the **route designation** (IH 35W, SH 183) as
+  `limit_identification` and the **local name** as `limit_alias`.
+- Check BOTH the close and context screenshots. The close view shows nearby
+  labels; the context view often reveals route shields and highway
+  interchanges that are not visible at close zoom.
+
+### B. Identify which major road is actually at the endpoint
+- The endpoint is where the thick segment line ends — which **highway or
+  major route** crosses or meets the segment at that exact point?
+- Look for **interchange ramp patterns** (circular or curved roads) which
+  indicate a highway interchange. The major route at an interchange is the
+  limit, even if a small local road label is closer to the exact endpoint
+  pixel.
+- If you see route shields (IH, US, SH, FM) anywhere near the endpoint,
+  that is almost certainly the limit — not the small street label next to it.
+- A nearby road 200m away is not the limit. But a highway interchange 50m
+  away IS the limit — interchanges are large and the endpoint may be at the
+  ramp merge, not the center of the interchange.
+- Look carefully at frontage roads versus mainlines. "Left Frontage IH 20"
+  and "IH 20" are different — note which one the segment actually meets.
 
 ### C. Check for offset situations
-- If the endpoint is between intersections, note that explicitly
-- Note the compass direction from the nearest identifiable road to the endpoint
+- If the endpoint is between intersections (no major route crosses at the
+  exact point), it is an **offset**. Set `is_offset: true`.
+- Note the compass direction and the nearest identifiable route:
+  `offset_direction: "N"`, `offset_from: "SH 183"`
+- Even for offsets, `limit_identification` should reference the nearest
+  major route, e.g., "N of SH 183" — not a local street name.
 
 ### D. Look for county boundaries
 - County boundary lines may appear as thin administrative lines on the map, or
-  as a color change in the basemap tint (different counties have different
-  background colors)
-- If the endpoint itself is at a county boundary, set `county_boundary_at_endpoint: true` and use `"[County Name] County Line"` as `limit_identification`
-- A county line that is merely nearby should be noted in `reasoning` but not flagged as `county_boundary_at_endpoint`
+  as a **color change in the basemap tint** (different counties have different
+  background colors — this is the most reliable visual indicator)
+- If the endpoint itself is at a county boundary, set
+  `county_boundary_at_endpoint: true` and use `"[County Name] County Line"`
+  as `limit_identification`
+- A county line that is merely nearby should be noted in `reasoning` but not
+  flagged as `county_boundary_at_endpoint`
+- County boundaries take priority over highway crossings when both are at the
+  same endpoint
 
 ### E. For GAP segments specifically
 - Does the thick segment line visibly end or restart at this endpoint? You
   should see the line terminating and a gap before the next piece begins.
 - Is the gap a real physical discontinuity, or does the road continue but
   the segment highlight stops? (Both are valid — report what you see.)
-- What road or boundary is at this specific piece's endpoint? Each piece's
-  From and To limits are identified independently — do not assume they are
-  the same as another piece's limits.
+- What **major route or boundary** is at this specific piece's endpoint?
+  Each piece's From and To limits are identified independently — do not
+  assume they are the same as another piece's limits.
 - If this is a corridor segment (unsuffixed name), the entire corridor is
   highlighted. The gap should be visible as a break in the thick line.
 
