@@ -123,7 +123,7 @@ Anti-bias is enforced by architecture: visual agents literally cannot access
 | 1 | Heuristic pass | `python Scripts/generate_visual_review_manifest.py` | ~2 min |
 | 2 | Generate prompts | `python Scripts/generate_visual_review_prompts.py` | seconds |
 | 3a | Capture screenshots | `python batch-screenshots.py --local` | ~5 min |
-| 3b | Visual analysis | Sub-agents read screenshots, produce JSON | ~20-30 min |
+| 3b | Visual analysis | Sub-agents read screenshots + road data, produce JSON (waves of 2-3) | ~20-30 min |
 | 3c | Spot-check | Orchestrator verifies, reviews disagreements | ~10 min |
 | 4 | Reconcile | `python Scripts/reconcile_results.py` | seconds |
 | 5 | Report | Summary + append to `verification-log.md` | ~2 min |
@@ -269,14 +269,15 @@ One row per segment. From = first piece's From limit, To = last piece's To.
 | Both agree | `confirmed` | Heuristic (visual validates) |
 | Visual adds alias | `enriched` | Heuristic + visual alias |
 | Disagree, visual confidence >= medium | `visual_preferred` | Visual |
-| Disagree, both low confidence | `conflict` | Heuristic (flagged for review) |
+| Disagree, visual confidence = low | `conflict` | Heuristic (flagged for review) |
 | Visual only (heuristic missing) | `visual_only` | Visual |
 
-Confidence scoring:
-- Confirmed: avg * 1.05 (capped at 0.99)
-- Enriched: avg * 1.02 (capped at 0.99)
-- Visual preferred: visual confidence
-- Conflict: heuristic confidence * 0.6
+Confidence scoring (matches `reconcile_results.py`):
+- Confirmed: `max(heuristic, 0.92)`
+- Enriched: `max(heuristic, 0.90)`
+- Visual preferred: visual confidence (numeric)
+- Conflict: `max(heuristic, visual) * 0.6`
+- Visual only: `visual * 0.9`
 
 ## Key files
 
@@ -306,6 +307,7 @@ All helpers live in `Web-App/app.js` (single source of truth).
 | `__waitForTiles(timeout)` | Wait for `view.updating === false` |
 | `__captureView(width, height)` | Native `MapView.takeScreenshot()` |
 | `__navigateAndCapture(name, lon, lat, closeZoom, contextZoom)` | Navigate + capture close/context pair |
+| `__queryRoadsNearPoint(lon, lat, radius)` | Query TxDOT roads within radius meters of a point |
 
 ## Directory structure
 

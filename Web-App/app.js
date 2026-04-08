@@ -587,7 +587,8 @@ require([
     const roads = [];
     result.features.forEach(function (f) {
       const a = f.attributes || {};
-      const key = [a.RTE_NM || "", a.RDBD_TYPE || "", a.DES_DRCT || ""].join("|");
+      const primaryName = a.MAP_LBL || a.RTE_NM;
+      const key = [primaryName || "", a.RDBD_TYPE || "", a.DES_DRCT || ""].join("|");
       if (seen.has(key)) return;
       seen.add(key);
       roads.push({

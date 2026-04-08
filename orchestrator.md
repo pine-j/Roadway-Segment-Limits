@@ -151,7 +151,7 @@ files do not exist, that batch is invalid — delete the results and re-run it.
 Visual Review sub-agents must never see heuristic answers.
 
 - Pass each Visual Review sub-agent only its batch prompt content (from
-  `_temp/visual-review/batch-prompts/batch-NN.md`) and Playwright MCP access
+  `_temp/visual-review/batch-prompts/batch-NN.md`) and Read/Write tool access
 - Do NOT include `heuristic-results.csv` or any heuristic output in their context
 - Do NOT mention heuristic findings when dispatching them
 - Do NOT read heuristic files during Phase 3, even as the orchestrator
@@ -208,7 +208,7 @@ Outputs:
 The first file is private to the Orchestrator. The manifest is the anti-bias
 firewall shared with Visual Review Agents.
 
-### Phase 2: Dispatch Heuristic Agent (prompt generation)
+### Phase 2: Generate visual review prompts
 
 Run:
 
@@ -228,8 +228,8 @@ native `MapView.takeScreenshot()` for fast, reliable capture.
 For each endpoint, the script produces three files:
 - `batch-NN-ep-MM-close.png` — close screenshot (zoom 17)
 - `batch-NN-ep-MM-context.png` — context screenshot (zoom 15)
-- `batch-NN-ep-MM-roads.json` — TxDOT road query at 50m and 200m radius
-  (same data a human sees when clicking a road in the web app)
+- `batch-NN-ep-MM-roads.json` — TxDOT road query at 50m, 200m, and 500m
+  radius (same data a human sees when clicking a road in the web app)
 
 ```bash
 # Option A: Use GitHub Pages (deployed app)
@@ -315,8 +315,9 @@ After each wave of sub-agents completes:
 
 1. **Validate results**: check that each batch JSON exists, has the correct
    endpoint count, and all referenced screenshots are on disk.
-2. **Collect rescan requests**: scan each batch result for entries with
-   `"needs_rescan": true`. Group them by batch number.
+2. **Collect rescan and investigation requests**: scan each batch result for
+   entries with `"needs_rescan": true` or `"needs_investigation": true`.
+   Group them by batch number.
 3. **If no rescans needed**: proceed to the next wave (or Phase 3c if all
    waves are done).
 4. **If rescans are needed**: for each flagged endpoint, determine what would

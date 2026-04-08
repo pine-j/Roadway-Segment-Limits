@@ -195,10 +195,14 @@ def main():
                     roads_200 = page.evaluate(
                         f"window.__queryRoadsNearPoint({lon}, {lat}, 200)"
                     )
+                    roads_500 = page.evaluate(
+                        f"window.__queryRoadsNearPoint({lon}, {lat}, 500)"
+                    )
                     roads_data = {
                         "endpoint": {"lon": lon, "lat": lat},
                         "roads_within_50m": roads_50,
                         "roads_within_200m": roads_200,
+                        "roads_within_500m": roads_500,
                     }
                     roads_path.write_text(
                         json.dumps(roads_data, indent=2), encoding="utf-8"
@@ -218,7 +222,8 @@ def main():
 
                     n50 = len(roads_50)
                     n200 = len(roads_200)
-                    print(f"       close: {close_kb:.0f}KB  context: {context_kb:.0f}KB  roads: {n50} @50m, {n200} @200m")
+                    n500 = len(roads_500)
+                    print(f"       close: {close_kb:.0f}KB  context: {context_kb:.0f}KB  roads: {n50}@50m {n200}@200m {n500}@500m")
                     captured += 1
 
                 except Exception as exc:

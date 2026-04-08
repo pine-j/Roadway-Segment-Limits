@@ -9,8 +9,8 @@
 > what to report, and known heuristic failure modes. Add new scenarios or
 > update existing ones as they come up.
 >
-> See also: [SEGMENT_LIMITS_LOGIC.md](SEGMENT_LIMITS_LOGIC.md) for the
-> heuristic engine internals and confidence model.
+> See also: [Segment-Limits-Heuristics-Logic.md](Segment-Limits-Heuristics-Logic.md)
+> for the heuristic engine internals and confidence model.
 
 ## What is a "limit"?
 
@@ -100,8 +100,11 @@ If roads on one side are "Tarrant" and the other side are "Johnson", the
 endpoint is at the Tarrant / Johnson County Line.
 
 **Report**:
-- `limit_identification`: "[County A] / [County B] County Line" or
-  "[County] County Line"
+- `limit_identification`: use the county name that the segment is **entering**
+  (the far side of the boundary from the segment's perspective). E.g., if
+  the segment runs from Tarrant County into Johnson County, the limit is
+  "Johnson County Line". If the direction is ambiguous, use both names:
+  "Tarrant / Johnson County Line".
 - `county_boundary_at_endpoint`: true
 - `is_offset`: false
 - `visual_confidence`: "high" if color change is clear; "medium" if subtle
@@ -259,24 +262,74 @@ would swap a piece's From and To limits.
 
 ### Scenario 10: Endpoint needs further investigation
 
-**What you see**: the initial data (screenshots + road query at 50m/200m)
+**What you see**: the initial data (screenshots + road query at 50m/200m/500m)
 is insufficient. The endpoint is ambiguous — maybe between two possible
 roads, or in a complex interchange where it's unclear which road is the
 limit.
 
-**How the agent should handle this iteratively**:
+**How the agent should handle this**:
 
-1. Request a wider road query (500m radius) to find nearby features
-2. Request an additional screenshot at a different zoom level (zoom 19 for
-   detail, zoom 14 for broader context)
-3. If a specific road is visible in the screenshot but not in the road query,
-   request a targeted road query at that road's approximate coordinates
-4. Look at the context screenshot for clues about the broader road network
-5. Make the best determination possible and document the uncertainty
+1. Check all three query radii (50m, 200m, 500m) in the roads.json — the
+   wider radii may reveal a highway that was outside the initial search
+2. Use the context screenshot (zoom 15) for clues about the broader road
+   network — interchanges, county color changes, highway shields
+3. Cross-reference what you see in the screenshots with the road query data
+4. Make the best determination possible and document the uncertainty
 
-**The goal is zero unresolved endpoints.** Keep investigating until every
-endpoint has a definitive limit. Only accept "low confidence" after
-exhausting all available tools.
+If after using all available data (three query radii + two screenshots +
+playbook scenarios) you still cannot determine a confident limit:
+
+- Set `visual_confidence: "low"`
+- Set `"needs_investigation": true`
+- In `reasoning`, describe specifically what is ambiguous and what additional
+  data would help (e.g., "Need closer screenshot at zoom 19 to read labels
+  at interchange", "Road visible in screenshot but not in any query radius —
+  may be outside 500m")
+
+The orchestrator will review all `needs_investigation` endpoints and can:
+- Re-capture screenshots at different zoom levels
+- Run targeted road queries at specific coordinates
+- Make the final determination using the full pipeline context
+
+**The goal is zero unresolved endpoints.** The agent should resolve as many
+as possible; the orchestrator handles the rest.
+
+---
+
+### Scenario 11: Dead-end / terminus
+
+**What you see**: the highway simply ends. There is no crossing road, no
+county boundary — the road terminates.
+
+**How to determine**: the road query will show only the segment's own route.
+The screenshots show the road ending (no continuation). This is different
+from an offset (Scenario 4) where the highway continues but the segment
+stops.
+
+**Report**:
+- `limit_identification`: "End of [route]" (e.g., "End of FM 1189")
+- `is_offset`: false
+- `visual_confidence`: "medium"
+
+**Known heuristic weakness**: the heuristic does not have a dedicated
+terminus detection mode. It will fall back to the nearest road, which may
+be far away and irrelevant.
+
+---
+
+### Additional limit types (for reference)
+
+These features may appear near endpoints. They are listed here so reviewers
+know how to handle them if encountered:
+
+- **Toll roads (TL)**: rank between FM/RM and named local roads in priority
+- **County roads (CR)**: rank between FM/RM and named local roads
+- **Park roads (PA/PR), forest service roads (FS)**: same as county roads
+- **City limit boundaries**: NOT used as segment limits in TxDOT convention.
+  If a segment happens to end at a city limit, look for the actual road or
+  county boundary instead.
+- **Railroad grade crossings**: NOT used as segment limits. Report the
+  nearest road crossing or offset instead.
 
 ---
 

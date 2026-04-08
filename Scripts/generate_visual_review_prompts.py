@@ -107,8 +107,8 @@ by analyzing pre-captured map screenshots.
 ## CRITICAL: Visual-only assessment
 
 - Do NOT look at any heuristic results files (heuristic-results.csv, etc.)
-- Do NOT read any CSV, JSON, or data files in `_temp/` other than the screenshot
-  image files listed in the endpoint table below
+- Do NOT read any CSV or data files in `_temp/` other than the screenshot image
+  files and road query JSON files listed in the endpoint table below
 - ONLY use what you can visually read from the map screenshots: rendered road
   labels, route shield graphics, county boundary lines, and the segment highlight
 - Do NOT fabricate observations — if a label is unreadable, say so
@@ -212,8 +212,8 @@ Each endpoint has three sources of information:
 2. **Context screenshot** (zoom 15): wider area, interchanges, county
    boundaries visible
 3. **Road query data** (`roads.json` file): TxDOT attribute data for all
-   roads within 50m and 200m of the endpoint — this is the same data a
-   human sees when they click a road in the web app. Each road entry has:
+   roads within 50m, 200m, and 500m of the endpoint — this is the same data
+   a human sees when they click a road in the web app. Each road entry has:
    - `route_name`: official TxDOT route name (e.g., "IH 0030-KG")
    - `route_prefix`: highway system (IH, US, SH, FM, etc.)
    - `route_number`: route number
@@ -228,9 +228,14 @@ For each endpoint, work through this process:
 **Step 1 — Read the road query data** (`roads.json`). This tells you what
 TxDOT says is at the endpoint. Look at the `roads_within_50m` list first:
 - If it contains a highway route (IH/US/SH/FM prefix), that is likely the
-  limit. Note the `map_label` and `roadbed_type`.
+  limit. Note the `map_label` and `roadbed_type`. Use `map_label` (not
+  `route_name`) for `limit_identification` — `map_label` uses the clean
+  display format (e.g., "IH 30") while `route_name` uses TxDOT internal
+  format (e.g., "IH 0030-KG").
 - If `roads_within_50m` is empty or contains only local roads, check
   `roads_within_200m` for the nearest highway — this is an offset situation.
+- If `roads_within_200m` is also empty, check `roads_within_500m` — for
+  rural endpoints the nearest highway may be farther away.
 
 **Step 2 — Read the screenshots** to verify spatially:
 - Does the thick segment line actually terminate at the road identified in
