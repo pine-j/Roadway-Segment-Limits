@@ -562,6 +562,49 @@ require([
     return matches.length;
   };
 
+  window.__queryRoadsNearPoint = async function (lon, lat, radiusMeters) {
+    radiusMeters = radiusMeters || 50;
+    const point = {
+      type: "point",
+      longitude: lon,
+      latitude: lat,
+      spatialReference: { wkid: 4326 },
+    };
+    const query = roadsQueryLayer.createQuery();
+    query.geometry = point;
+    query.distance = radiusMeters;
+    query.units = "meters";
+    query.spatialRelationship = "intersects";
+    query.returnGeometry = false;
+    query.outFields = [
+      "RTE_NM", "RTE_PRFX", "RTE_NBR", "MAP_LBL",
+      "RDBD_TYPE", "DES_DRCT", "COUNTY", "BEGIN_DFO", "END_DFO",
+    ];
+    query.orderByFields = ["RTE_NM ASC"];
+
+    const result = await roadsQueryLayer.queryFeatures(query);
+    const seen = new Set();
+    const roads = [];
+    result.features.forEach(function (f) {
+      const a = f.attributes || {};
+      const key = [a.RTE_NM || "", a.RDBD_TYPE || "", a.DES_DRCT || ""].join("|");
+      if (seen.has(key)) return;
+      seen.add(key);
+      roads.push({
+        route_name: a.RTE_NM || null,
+        route_prefix: a.RTE_PRFX || null,
+        route_number: a.RTE_NBR || null,
+        map_label: a.MAP_LBL || null,
+        roadbed_type: a.RDBD_TYPE || null,
+        direction: a.DES_DRCT || null,
+        county: a.COUNTY || null,
+        begin_dfo: a.BEGIN_DFO,
+        end_dfo: a.END_DFO,
+      });
+    });
+    return roads;
+  };
+
   window.__navigateAndCapture = async function (_segmentName, lon, lat, closeZoom, contextZoom) {
     closeZoom = closeZoom || 17;
     contextZoom = contextZoom || 15;

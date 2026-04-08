@@ -77,16 +77,18 @@ def piece_display(entry: dict[str, object]) -> str:
 
 def render_endpoints_table(batch_name: str, batch_entries: list[dict[str, object]]) -> str:
     lines = [
-        "| # | Segment | Side | Piece | Coordinates | Close screenshot | Context screenshot | Notes |",
-        "|---|---------|------|-------|-------------|-----------------|-------------------|-------|",
+        "| # | Segment | Side | Piece | Coordinates | Close screenshot | Context screenshot | Road data | Notes |",
+        "|---|---------|------|-------|-------------|-----------------|-------------------|-----------|-------|",
     ]
     for endpoint_id, entry in enumerate(batch_entries, start=1):
         coords = f"({fmt_coord(entry.get('lon'))}, {fmt_coord(entry.get('lat'))})"
-        close_file = f"`_temp/visual-review/screenshots/{batch_name}-ep-{endpoint_id:02d}-close.png`"
-        context_file = f"`_temp/visual-review/screenshots/{batch_name}-ep-{endpoint_id:02d}-context.png`"
+        ss = f"_temp/visual-review/screenshots/{batch_name}-ep-{endpoint_id:02d}"
+        close_file = f"`{ss}-close.png`"
+        context_file = f"`{ss}-context.png`"
+        roads_file = f"`{ss}-roads.json`"
         lines.append(
             f"| {endpoint_id} | {entry['segment']} | {entry['side']} | {piece_display(entry)} | "
-            f"{coords} | {close_file} | {context_file} | {endpoint_note(entry)} |"
+            f"{coords} | {close_file} | {context_file} | {roads_file} | {endpoint_note(entry)} |"
         )
     return "\n".join(lines)
 
@@ -111,7 +113,13 @@ by analyzing pre-captured map screenshots.
   labels, route shield graphics, county boundary lines, and the segment highlight
 - Do NOT fabricate observations — if a label is unreadable, say so
 
-Your assessment must come purely from visual map reading, not data queries.
+Your assessment must come purely from visual map reading and road query data.
+
+## Required reading
+
+Before processing any endpoints, read `SEGMENT_LIMITS_PLAYBOOK.md` in the
+project root. It defines the scenarios, priority rules, and decision logic
+for determining limits. Follow it exactly.
 
 ## How screenshots were captured
 
@@ -184,11 +192,8 @@ defines where the segment starts or ends. Limits are expressed as:
 - **County boundary lines**: Johnson County Line, Tarrant / Wise County Line
 - **Offsets from a route**: N of SH 183, S of E Altamesa Blvd
 
-A limit is almost NEVER a local residential street name. If you see a local
-street label (like "Dewey St" or "Sheridan Rd") near the endpoint, look for
-the **major route or highway that crosses at or near that same location**.
-The local street name may be a useful alias to report in `limit_alias`, but
-`limit_identification` should be the highway-level designation.
+A limit is almost NEVER a local residential street name. Local streets go in
+`limit_alias`, not `limit_identification`.
 
 **Priority order for `limit_identification`:**
 1. County boundary line (if the endpoint sits on a color-change boundary)
@@ -197,69 +202,76 @@ The local street name may be a useful alias to report in `limit_alias`, but
 4. State highway (SH) crossing
 5. Farm-to-market road (FM/RM) crossing
 6. Business route (BU), State Spur (SS), or State Loop (SL)
-7. Named local road ONLY if no highway-level route is visible anywhere
-   near the endpoint — this is rare and should be flagged as
-   `visual_confidence: "low"`
+7. Named local road ONLY if no highway-level route exists near the endpoint
 
-### A. Read all visible road labels near the endpoint
-- **Route shields with numbers** are the most important: look for the colored
-  shield graphics with route designations (IH 30, SH 114, US 281, FM 731).
-  These are the primary identifiers for limits.
-- Street name labels rendered along road lines (W Vickery Blvd, E Euless Blvd)
-  are secondary — they are local names or aliases.
-- Many highways have BOTH a route number and a local name. For example,
-  IH 35W may also be labeled "South Fwy", or SH 183 may show as
-  "Jacksboro Hwy". Report the **route designation** (IH 35W, SH 183) as
+### Data available per endpoint
+
+Each endpoint has three sources of information:
+
+1. **Close screenshot** (zoom 17): spatial layout, some labels visible
+2. **Context screenshot** (zoom 15): wider area, interchanges, county
+   boundaries visible
+3. **Road query data** (`roads.json` file): TxDOT attribute data for all
+   roads within 50m and 200m of the endpoint — this is the same data a
+   human sees when they click a road in the web app. Each road entry has:
+   - `route_name`: official TxDOT route name (e.g., "IH 0030-KG")
+   - `route_prefix`: highway system (IH, US, SH, FM, etc.)
+   - `route_number`: route number
+   - `map_label`: display label (e.g., "IH 30", "W Vickery Blvd")
+   - `roadbed_type`: "Main Lane", "Frontage", etc.
+   - `county`: county name
+
+### Assessment workflow
+
+For each endpoint, work through this process:
+
+**Step 1 — Read the road query data** (`roads.json`). This tells you what
+TxDOT says is at the endpoint. Look at the `roads_within_50m` list first:
+- If it contains a highway route (IH/US/SH/FM prefix), that is likely the
+  limit. Note the `map_label` and `roadbed_type`.
+- If `roads_within_50m` is empty or contains only local roads, check
+  `roads_within_200m` for the nearest highway — this is an offset situation.
+
+**Step 2 — Read the screenshots** to verify spatially:
+- Does the thick segment line actually terminate at the road identified in
+  Step 1?
+- Is there an interchange visible (circular ramps)? The major route at the
+  interchange is the limit.
+- Is there a basemap color change at the endpoint? That indicates a county
+  boundary, which takes priority.
+- Does the segment end between intersections? That's an offset.
+
+**Step 3 — Determine the limit** by combining both sources:
+- **Road query shows a highway at 50m + screenshots confirm crossing** →
+  use the highway designation as `limit_identification`
+- **Road query shows a highway at 50m + screenshots show the endpoint is
+  NOT at that highway** → the endpoint may be offset. Check if the segment
+  terminates before reaching the highway. Set `is_offset: true`.
+- **Road query at 50m is empty, 200m shows a highway** → offset situation.
+  The limit is "N/S/E/W of [highway]". Use the screenshots to determine
+  the compass direction.
+- **County boundary visible in screenshots** → use "[County] County Line"
+  as the limit. The road query may show roads from both counties (check the
+  `county` field to confirm the boundary).
+- **Multiple highways at the endpoint** → use the screenshots to determine
+  which one the segment line actually meets. The road query tells you the
+  names; the screenshots tell you which road is at the endpoint.
+
+**Step 4 — If still uncertain, flag for investigation.** If Steps 1-3 do
+not produce a confident answer, the orchestrator will investigate further
+with wider road queries and additional screenshots at different zoom levels.
+Set `visual_confidence: "low"` and describe what is ambiguous in `reasoning`.
+
+### Additional considerations
+
+- Many highways have BOTH a route number and a local name (e.g., IH 35W is
+  also "South Fwy"). Report the **route designation** as
   `limit_identification` and the **local name** as `limit_alias`.
-- Check BOTH the close and context screenshots. The close view shows nearby
-  labels; the context view often reveals route shields and highway
-  interchanges that are not visible at close zoom.
-
-### B. Identify which major road is actually at the endpoint
-- The endpoint is where the thick segment line ends — which **highway or
-  major route** crosses or meets the segment at that exact point?
-- Look for **interchange ramp patterns** (circular or curved roads) which
-  indicate a highway interchange. The major route at an interchange is the
-  limit, even if a small local road label is closer to the exact endpoint
-  pixel.
-- If you see route shields (IH, US, SH, FM) anywhere near the endpoint,
-  that is almost certainly the limit — not the small street label next to it.
-- A nearby road 200m away is not the limit. But a highway interchange 50m
-  away IS the limit — interchanges are large and the endpoint may be at the
-  ramp merge, not the center of the interchange.
-- Look carefully at frontage roads versus mainlines. "Left Frontage IH 20"
-  and "IH 20" are different — note which one the segment actually meets.
-
-### C. Check for offset situations
-- If the endpoint is between intersections (no major route crosses at the
-  exact point), it is an **offset**. Set `is_offset: true`.
-- Note the compass direction and the nearest identifiable route:
-  `offset_direction: "N"`, `offset_from: "SH 183"`
-- Even for offsets, `limit_identification` should reference the nearest
-  major route, e.g., "N of SH 183" — not a local street name.
-
-### D. Look for county boundaries
-- County boundary lines may appear as thin administrative lines on the map, or
-  as a **color change in the basemap tint** (different counties have different
-  background colors — this is the most reliable visual indicator)
-- If the endpoint itself is at a county boundary, set
-  `county_boundary_at_endpoint: true` and use `"[County Name] County Line"`
-  as `limit_identification`
-- A county line that is merely nearby should be noted in `reasoning` but not
-  flagged as `county_boundary_at_endpoint`
-- County boundaries take priority over highway crossings when both are at the
-  same endpoint
-
-### E. For GAP segments specifically
-- Does the thick segment line visibly end or restart at this endpoint? You
-  should see the line terminating and a gap before the next piece begins.
-- Is the gap a real physical discontinuity, or does the road continue but
-  the segment highlight stops? (Both are valid — report what you see.)
-- What **major route or boundary** is at this specific piece's endpoint?
-  Each piece's From and To limits are identified independently — do not
-  assume they are the same as another piece's limits.
-- If this is a corridor segment (unsuffixed name), the entire corridor is
-  highlighted. The gap should be visible as a break in the thick line.
+- Look carefully at frontage roads versus mainlines. The road query's
+  `roadbed_type` field distinguishes "Main Lane" from "Frontage".
+- For GAP segments: each piece's From and To limits are identified
+  independently. The thick line has visible breaks — each contiguous stretch
+  is a separate piece.
 
 ## Endpoints
 

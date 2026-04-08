@@ -80,6 +80,7 @@ REQUIRED_HELPERS = [
     "__captureView",
     "__selectCorridorSegments",
     "__navigateAndCapture",
+    "__queryRoadsNearPoint",
 ]
 
 
@@ -186,6 +187,23 @@ def main():
                     save_data_url(data["close"], close_path)
                     save_data_url(data["context"], context_path)
 
+                    # Query roads near endpoint (like clicking the map)
+                    roads_path = args.outdir / f"batch-{batch_num:02d}-ep-{ep_num:02d}-roads.json"
+                    roads_50 = page.evaluate(
+                        f"window.__queryRoadsNearPoint({lon}, {lat}, 50)"
+                    )
+                    roads_200 = page.evaluate(
+                        f"window.__queryRoadsNearPoint({lon}, {lat}, 200)"
+                    )
+                    roads_data = {
+                        "endpoint": {"lon": lon, "lat": lat},
+                        "roads_within_50m": roads_50,
+                        "roads_within_200m": roads_200,
+                    }
+                    roads_path.write_text(
+                        json.dumps(roads_data, indent=2), encoding="utf-8"
+                    )
+
                     close_kb = close_path.stat().st_size / 1024
                     context_kb = context_path.stat().st_size / 1024
 
@@ -198,7 +216,9 @@ def main():
                     if blank_warning:
                         print(f"       WARNING:{blank_warning} — tiles may have failed to render")
 
-                    print(f"       close: {close_kb:.0f}KB  context: {context_kb:.0f}KB")
+                    n50 = len(roads_50)
+                    n200 = len(roads_200)
+                    print(f"       close: {close_kb:.0f}KB  context: {context_kb:.0f}KB  roads: {n50} @50m, {n200} @200m")
                     captured += 1
 
                 except Exception as exc:

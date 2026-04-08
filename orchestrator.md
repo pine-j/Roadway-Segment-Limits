@@ -14,6 +14,11 @@ design-phase documents that describe a different architecture (e.g.,
 Playwright MCP for screenshots). They exist only for case study reference.
 This file and `Project-Plan/master-plan.md` are the current sources of truth.
 
+**Required reading for visual analysis**: `SEGMENT_LIMITS_PLAYBOOK.md`
+defines the scenarios, priority rules, and decision logic for determining
+limits. All visual analysis sub-agents must read it. If a reviewer updates
+the playbook, the next pipeline run automatically adopts the changes.
+
 ## Input
 
 **Default**: `FTW-Segments-Limits-Amy.review.csv` (all segments)
@@ -216,9 +221,15 @@ This creates `_temp/visual-review/batch-prompts/batch-01.md` through
 
 ### Phase 3a: Capture screenshots
 
-Run `batch-screenshots.py` to capture all endpoint screenshots at once. This
-uses Playwright as a Python library (not MCP) and ArcGIS native
-`MapView.takeScreenshot()` for fast, reliable capture.
+Run `batch-screenshots.py` to capture all endpoint screenshots AND road query
+data at once. This uses Playwright as a Python library (not MCP) and ArcGIS
+native `MapView.takeScreenshot()` for fast, reliable capture.
+
+For each endpoint, the script produces three files:
+- `batch-NN-ep-MM-close.png` — close screenshot (zoom 17)
+- `batch-NN-ep-MM-context.png` — context screenshot (zoom 15)
+- `batch-NN-ep-MM-roads.json` — TxDOT road query at 50m and 200m radius
+  (same data a human sees when clicking a road in the web app)
 
 ```bash
 # Option A: Use GitHub Pages (deployed app)
