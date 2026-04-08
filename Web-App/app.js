@@ -54,6 +54,7 @@ require([
   const segmentsLayer = new FeatureLayer({
     url: SEGMENTS_URL,
     title: "FTW Segments",
+    visible: false,
     outFields: [
       "OBJECTID",
       "Readable_SegID",
@@ -62,8 +63,6 @@ require([
       "County",
       "HSYS",
       "Segment_Length_Mi",
-      "Need_Description",
-      "Type_of_Need",
     ],
     popupEnabled: false,
     renderer: {
@@ -80,6 +79,11 @@ require([
 
   const selectedSegmentsLayer = new GraphicsLayer({
     title: "Selected FTW Segments",
+    listMode: "hide",
+  });
+
+  const roadHighlightLayer = new GraphicsLayer({
+    title: "Road Highlight",
     listMode: "hide",
   });
 
@@ -102,7 +106,7 @@ require([
 
   const map = new EsriMap({
     basemap: "gray-vector",
-    layers: [txdotVectorLayer, segmentsLayer, selectedSegmentsLayer],
+    layers: [txdotVectorLayer, segmentsLayer, roadHighlightLayer, selectedSegmentsLayer],
   });
 
   const view = new MapView({
@@ -196,8 +200,7 @@ require([
     const summaries = Array.from(counts.entries()).map(([code, count]) => ({
       code,
       count,
-      label: code === "All" ? "All segments" : code,
-      subtitle: code === "All" ? "Entire FTW inventory" : "Highway system",
+      label: code,
     }));
 
     return [summaries[0], ...summaries.slice(1).sort(sortByLabel)];
@@ -234,10 +237,7 @@ require([
             class="category-button ${summary.code === state.activeCategory ? "is-active" : ""}"
             data-category="${escapeHtml(summary.code)}"
           >
-            <span class="category-label">
-              <span class="category-code">${escapeHtml(summary.label)}</span>
-              <span class="category-subtitle">${escapeHtml(summary.subtitle)}</span>
-            </span>
+            <span class="category-code">${escapeHtml(summary.label)}</span>
             <span class="count-pill">${summary.count}</span>
           </button>
         `,
@@ -273,39 +273,20 @@ require([
         const isSelected = state.selectedSegmentIds.has(segment.objectId);
 
         return `
-          <article class="segment-card ${isSelected ? "is-selected" : ""}" data-segment-id="${segment.objectId}">
+          <label class="segment-row ${isSelected ? "is-selected" : ""}" data-segment-id="${segment.objectId}">
             <input
               class="segment-toggle"
               type="checkbox"
               data-toggle-id="${segment.objectId}"
               ${isSelected ? "checked" : ""}
-              aria-label="Select ${escapeHtml(segment.label)}"
             />
-
-            <div class="segment-meta" data-focus-id="${segment.objectId}">
-              <h3 class="segment-name">${escapeHtml(segment.label)}</h3>
-              <p class="segment-detail">${escapeHtml(segment.highway || "Unknown highway")} · ${escapeHtml(
-                segment.county || "County unavailable",
-              )}</p>
-              <div class="segment-tags">
-                <span class="tag">${escapeHtml(segment.hsys || "N/A")}</span>
-                <span class="tag">${escapeHtml(formatMiles(segment.lengthMiles))}</span>
-              </div>
-            </div>
-
-            <button class="focus-button" type="button" data-focus-id="${segment.objectId}">
-              Focus
-            </button>
-          </article>
+            <span class="segment-name">${escapeHtml(segment.label)}</span>
+          </label>
         `;
       })
       .join("");
 
     elements.segmentList.querySelectorAll("[data-toggle-id]").forEach((checkbox) => {
-      checkbox.addEventListener("click", (event) => {
-        event.stopPropagation();
-      });
-
       checkbox.addEventListener("change", async () => {
         const objectId = Number(checkbox.dataset.toggleId);
 
@@ -317,16 +298,7 @@ require([
 
         render();
         await syncSelectedGraphics();
-      });
-    });
-
-    elements.segmentList.querySelectorAll("[data-focus-id]").forEach((element) => {
-      element.addEventListener("click", async () => {
-        const objectId = Number(element.dataset.focusId);
-        state.selectedSegmentIds.add(objectId);
-        render();
-        await syncSelectedGraphics();
-        await zoomToSegments([objectId]);
+        await zoomToSegments(Array.from(state.selectedSegmentIds));
       });
     });
   }
@@ -334,14 +306,6 @@ require([
   function render() {
     renderCategories();
     renderSegments();
-  }
-
-  function formatMiles(lengthMiles) {
-    if (typeof lengthMiles !== "number" || Number.isNaN(lengthMiles)) {
-      return "Length unavailable";
-    }
-
-    return lengthMiles.toFixed(1) + " mi";
   }
 
   async function querySegments(objectIds) {
@@ -360,8 +324,6 @@ require([
       "County",
       "HSYS",
       "Segment_Length_Mi",
-      "Need_Description",
-      "Type_of_Need",
     ];
 
     const result = await segmentsLayer.queryFeatures(query);
@@ -406,41 +368,14 @@ require([
     }).expand(isSingleSegment ? 1.2 : 1.1);
   }
 
-  function buildSegmentPopup(feature) {
-    const attributes = feature.attributes ?? {};
-    const name = attributes.Readable_SegID || attributes.Segment_ID || "FTW segment";
-    const lengthText = formatMiles(attributes.Segment_Length_Mi);
-    const highway = attributes.Highway || "Unknown highway";
-    const county = attributes.County || "County unavailable";
-    const typeOfNeed = attributes.Type_of_Need || "Need type not provided";
-
-    return {
-      title: name,
-      content: `
-        <div class="road-popup">
-          <p><strong>${escapeHtml(highway)}</strong> · ${escapeHtml(county)}</p>
-          <ul>
-            <li>${escapeHtml(lengthText)}</li>
-            <li>${escapeHtml(typeOfNeed)}</li>
-          </ul>
-        </div>
-      `,
-    };
-  }
-
-  /**
-   * Filter out small artifact fragments from a polyline geometry.
-   * Keeps paths that are >= minLength meters OR >= minRatio of total length.
-   * Connected paths (endpoint gap < mergeThreshold) are kept regardless of size.
-   */
-  function filterArtifactPaths(geometry, { minLength = 600, minRatio = 0.05, mergeThreshold = 50 } = {}) {
+  /** Drop tiny artifact paths that are less than 5% of the longest path. */
+  function filterArtifactPaths(geometry) {
     if (!geometry || !geometry.paths || geometry.paths.length <= 1) {
       return geometry;
     }
 
     const paths = geometry.paths;
 
-    // Compute path lengths (approximate using Euclidean distance in map units)
     function pathLength(path) {
       let len = 0;
       for (let i = 1; i < path.length; i++) {
@@ -451,54 +386,15 @@ require([
       return len;
     }
 
-    // Distance between two points
-    function ptDist(a, b) {
-      const dx = a[0] - b[0];
-      const dy = a[1] - b[1];
-      return Math.sqrt(dx * dx + dy * dy);
-    }
-
-    // Minimum endpoint-to-endpoint distance between two paths
-    function endpointGap(pathA, pathB) {
-      const aStart = pathA[0];
-      const aEnd = pathA[pathA.length - 1];
-      const bStart = pathB[0];
-      const bEnd = pathB[pathB.length - 1];
-      return Math.min(
-        ptDist(aStart, bStart), ptDist(aStart, bEnd),
-        ptDist(aEnd, bStart), ptDist(aEnd, bEnd),
-      );
-    }
-
-    // Check if path is connected to any other path (gap < mergeThreshold)
-    // Connected paths are kept even if small
+    // Find the longest path — that's the main segment
     const lengths = paths.map(pathLength);
-    const totalLength = lengths.reduce((a, b) => a + b, 0);
+    const maxLength = Math.max(...lengths);
 
-    // Convert mergeThreshold from meters to approximate map units
-    // For WGS84 at ~32° latitude: 1 degree ≈ 85km lon, 111km lat
-    // Map units are degrees, so 50m ≈ 0.00045 degrees
-    const sr = geometry.spatialReference;
-    const isGeographic = !sr || sr.isGeographic || sr.wkid === 4326;
-    const thresholdUnits = isGeographic ? mergeThreshold / 100000 : mergeThreshold;
-    const minLengthUnits = isGeographic ? minLength / 100000 : minLength;
-
-    const kept = paths.filter((path, i) => {
-      // Always keep if long enough
-      if (lengths[i] >= minLengthUnits || lengths[i] >= totalLength * minRatio) {
-        return true;
-      }
-      // Keep if connected to another path
-      for (let j = 0; j < paths.length; j++) {
-        if (j !== i && endpointGap(path, paths[j]) < thresholdUnits) {
-          return true;
-        }
-      }
-      return false;
-    });
+    // Keep paths that are at least 5% of the longest path's length
+    const kept = paths.filter((path, i) => lengths[i] >= maxLength * 0.05);
 
     if (kept.length === 0) {
-      return geometry; // Don't drop everything
+      return geometry;
     }
 
     const normalizedPaths = kept.map((path) => path.map((point) => Array.from(point)));
@@ -527,14 +423,12 @@ require([
     const features = await querySegments(objectIds);
 
     features.forEach((feature) => {
-      const sourceGeometry =
-        typeof feature.geometry?.toJSON === "function" ? feature.geometry.toJSON() : feature.geometry;
       const highlightedFeature = typeof feature.clone === "function" ? feature.clone() : feature;
-      highlightedFeature.geometry = filterArtifactPaths(sourceGeometry);
+      highlightedFeature.geometry = filterArtifactPaths(feature.geometry);
       highlightedFeature.symbol = {
         type: "simple-line",
-        color: [11, 107, 122, 255],
-        width: 7,
+        color: [158, 50, 82, 255],
+        width: 5,
         cap: "round",
         join: "round",
       };
@@ -570,13 +464,6 @@ require([
       },
     );
 
-    if (isSingleSegment) {
-      const popup = buildSegmentPopup(features[0]);
-      view.openPopup({
-        ...popup,
-        location: features[0].geometry.extent?.center ?? view.center,
-      });
-    }
   }
 
   window.__waitForSegments = function () {
@@ -657,10 +544,10 @@ require([
   async function showRoadPopup(mapPoint) {
     const query = roadsQueryLayer.createQuery();
     query.geometry = mapPoint;
-    query.distance = Math.max(10, Math.min(view.resolution * 12, 90));
+    query.distance = Math.max(3, Math.min(view.resolution * 5, 20));
     query.units = "meters";
     query.spatialRelationship = "intersects";
-    query.returnGeometry = false;
+    query.returnGeometry = true;
     query.outFields = [
       "OBJECTID",
       "RTE_NM",
@@ -674,9 +561,29 @@ require([
       "END_DFO",
     ];
     query.orderByFields = ["RTE_NM ASC"];
-    query.num = 12;
+    query.num = 1;
 
     const result = await roadsQueryLayer.queryFeatures(query);
+
+    if (!result.features.length) {
+      view.closePopup();
+      return;
+    }
+
+    // Highlight the clicked road on the map
+    const hitFeature = result.features[0];
+    if (hitFeature.geometry) {
+      const highlight = typeof hitFeature.clone === "function" ? hitFeature.clone() : hitFeature;
+      highlight.symbol = {
+        type: "simple-line",
+        color: [0, 180, 220, 255],
+        width: 5,
+        cap: "round",
+        join: "round",
+      };
+      roadHighlightLayer.add(highlight);
+    }
+
     const roads = dedupeRoadResults(result.features);
 
     if (!roads.length) {
@@ -684,46 +591,29 @@ require([
       return;
     }
 
-    const title = roads.length === 1 ? roads[0].name : "Nearby TxDOT roadways";
-    const content =
-      roads.length === 1
-        ? `
-            <div class="road-popup">
-              <p><strong>${escapeHtml(roads[0].routeName)}</strong></p>
-              <ul>
-                <li>Roadbed Type: ${escapeHtml(roads[0].roadbedType)}</li>
-                <li>Name/Number: ${escapeHtml(roads[0].name)}</li>
-                <li>Direction: ${escapeHtml(roads[0].direction || "N/A")}</li>
-                <li>Begin DFO: ${escapeHtml(formatDfo(roads[0].beginDfo))}</li>
-                <li>End DFO: ${escapeHtml(formatDfo(roads[0].endDfo))}</li>
-              </ul>
-              ${
-                roads[0].routePrefix && roads[0].routeNumber
-                  ? `<p><a href="${HIGHWAY_DESIGNATION_BASE_URL}?rtePrefix=${encodeURIComponent(
-                      roads[0].routePrefix,
-                    )}&rteNumber=${encodeURIComponent(
-                      roads[0].routeNumber,
-                    )}" target="_blank" rel="noreferrer">Open highway designation lookup</a></p>`
-                  : ""
-              }
-            </div>
-          `
-        : `
-            <div class="road-popup">
-              <p>Route names near this click</p>
-              <ul>
-                ${roads
-                  .map((road) => {
-                    const detailParts = [road.routeName, road.roadbedType, road.direction]
-                      .filter(Boolean);
-                    return `<li><strong>${escapeHtml(road.name)}</strong>${
-                      detailParts.length ? ` · ${escapeHtml(detailParts.join(" · "))}` : ""
-                    }</li>`;
-                  })
-                  .join("")}
-              </ul>
-            </div>
-          `;
+    const road = roads[0];
+    const title = road.name;
+    const content = `
+      <div class="road-popup">
+        <p><strong>${escapeHtml(road.routeName)}</strong></p>
+        <ul>
+          <li>Roadbed Type: ${escapeHtml(road.roadbedType)}</li>
+          <li>Name/Number: ${escapeHtml(road.name)}</li>
+          <li>Direction: ${escapeHtml(road.direction || "N/A")}</li>
+          <li>Begin DFO: ${escapeHtml(formatDfo(road.beginDfo))}</li>
+          <li>End DFO: ${escapeHtml(formatDfo(road.endDfo))}</li>
+        </ul>
+        ${
+          road.routePrefix && road.routeNumber
+            ? `<p><a href="${HIGHWAY_DESIGNATION_BASE_URL}?rtePrefix=${encodeURIComponent(
+                road.routePrefix,
+              )}&rteNumber=${encodeURIComponent(
+                road.routeNumber,
+              )}" target="_blank" rel="noreferrer">Open highway designation lookup</a></p>`
+            : ""
+        }
+      </div>
+    `;
 
     view.openPopup({
       title: escapeHtml(title),
@@ -781,21 +671,8 @@ require([
   });
 
   view.on("click", async (event) => {
-    const hitResponse = await view.hitTest(event, {
-      include: [segmentsLayer],
-    });
-
-    const segmentHit = hitResponse.results.find((result) => result.graphic?.layer === segmentsLayer);
-
-    if (segmentHit) {
-      const objectId = segmentHit.graphic.attributes.OBJECTID;
-      state.selectedSegmentIds.add(objectId);
-      render();
-      await syncSelectedGraphics();
-      await zoomToSegments([objectId]);
-      return;
-    }
-
+    view.closePopup();
+    roadHighlightLayer.removeAll();
     await showRoadPopup(event.mapPoint);
   });
 
