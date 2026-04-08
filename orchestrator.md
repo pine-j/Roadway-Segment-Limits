@@ -81,9 +81,15 @@ impossible, not just inadvisable.
 Check whether `_temp/visual-review/` contains stale files from a previous run.
 
 - Default behavior: log what exists, then delete `screenshots/`,
-  `batch-prompts/`, and `batch-results/`
+  `batch-prompts/`, `batch-results/`, `contact-sheets/`, and
+  `automation/` (if present from a prior Codex run)
 - Keep nothing from those transient directories unless the user explicitly asked
   to resume
+- **If deletion fails** (sandbox restrictions, permission errors, locked
+  files): **STOP immediately**. Report exactly which directories could not
+  be cleaned and ask the user to delete them manually. Do NOT proceed to
+  Phase 1 with stale files — the pipeline will produce unreliable results.
+  Resume only after the user confirms cleanup is done.
 - If the user passed `--resume`, skip cleanup and resume from existing files
 - On resume, check which `batch-NN-results.json` files already exist and do not
   respawn completed visual batches
