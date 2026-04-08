@@ -89,7 +89,7 @@ Anti-bias is enforced by architecture: visual agents literally cannot access
               python batch-screenshots.py
                      |
               Phase 3b: dispatch visual analysis agents
-              (waves of 3-5, with rescan loop)
+              (waves of 2-3, with rescan loop)
                      |
           +----------+----------+
           |          |          |

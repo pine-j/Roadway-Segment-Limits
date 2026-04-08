@@ -2,8 +2,7 @@
 """Generate batched visual-review prompts from the manifest.
 
 Produces batch prompt files that instruct sub-agents to analyze
-pre-captured screenshots (from batch-screenshots.py) rather than
-driving a browser via Playwright MCP.
+pre-captured screenshots and road query data from batch-screenshots.py.
 """
 
 from __future__ import annotations
