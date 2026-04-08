@@ -41,9 +41,9 @@ independent passes:
 1. **Heuristic pass** — Python scripts analyze ArcGIS geometry, TxDOT vector
    tile labels, county boundaries, and roadway inventory data to identify
    endpoint limits with confidence scores.
-2. **Visual pass** — Playwright MCP inspects the rendered map visually, takes
-   screenshots, and produces independent endpoint assessments with confidence
-   buckets.
+2. **Visual pass** — `batch-screenshots.py` captures map screenshots, then
+   sub-agents analyze the screenshots independently and produce endpoint
+   assessments with confidence buckets.
 3. **Reconciliation** — you merge both passes, categorize disagreements, produce
    final CSVs, and append persistent run learnings.
 
@@ -62,19 +62,18 @@ heuristic cannot reliably infer.
 
 ## HARD REQUIREMENTS — violations invalidate the entire run
 
-### 1. Playwright MCP is mandatory
+### 1. Screenshots must be real captures from the web app
 
-Phase 3 requires Playwright MCP to take real screenshots of the web app. If
-Playwright MCP is unavailable, blocked, misconfigured, or returns errors:
+Phase 3a uses `batch-screenshots.py` (Playwright library + ArcGIS native
+`MapView.takeScreenshot()`) to capture all endpoint screenshots. If the script
+fails or produces blank/missing screenshots:
 
 - **STOP the pipeline immediately.**
 - Report the exact error to the user.
-- Do NOT work around it. Do NOT write automation scripts, browser_run_code
-  hacks, fetch-and-eval workarounds, or any other substitute.
-- Do NOT generate visual review results without actual screenshots. Results
-  produced without Playwright MCP screenshots are fabricated data and will
+- Do NOT generate visual review results without real screenshots on disk.
+  Results produced without actual map screenshots are fabricated data and will
   corrupt the pipeline.
-- Wait for the user to fix the Playwright MCP issue before resuming.
+- Fix the issue and re-run the script before proceeding to Phase 3b.
 
 ### 2. Every visual result must have real screenshots
 
@@ -102,8 +101,9 @@ impossible, not just inadvisable.
 
 If any phase fails for any reason, stop and report. Do not generate synthetic
 or placeholder data to keep the pipeline moving. Every data file in this
-pipeline must come from either a Python script execution or a real Playwright
-MCP browser session — never from the LLM inventing plausible values.
+pipeline must come from either a Python script execution or real map
+screenshots captured by `batch-screenshots.py` — never from the LLM inventing
+plausible values.
 
 ## Workflow
 
@@ -155,64 +155,93 @@ python Scripts/generate_visual_review_prompts.py
 This creates `_temp/visual-review/batch-prompts/batch-01.md` through
 `batch-NN.md`.
 
-### Phase 3: Dispatch Visual Review sub-agents
+### Phase 3a: Capture screenshots
+
+Run `batch-screenshots.py` to capture all endpoint screenshots at once. This
+uses Playwright as a Python library (not MCP) and ArcGIS native
+`MapView.takeScreenshot()` for fast, reliable capture.
+
+```bash
+# Option A: Use GitHub Pages (deployed app)
+python batch-screenshots.py
+
+# Option B: Use local server (if app.js changes haven't been deployed yet)
+cd Web-App && python -m http.server 8080 &
+cd .. && python batch-screenshots.py --local
+```
+
+Key flags:
+- `--overwrite` — re-capture all screenshots (default: skip existing)
+- `--start-batch N` / `--end-batch N` — capture a specific batch range
+- `--headless` — run without visible browser (default: headed for tile rendering)
+
+**Verify after capture:**
+- Check the script output for errors (segment not found, etc.)
+- Confirm screenshot count matches endpoint count (104 endpoints = 208 PNGs)
+- Spot-check a few screenshots to verify tiles loaded and segments are
+  highlighted
+
+If any screenshots are missing or blank, re-run with `--overwrite` for the
+affected batch range.
+
+### Phase 3b: Dispatch Visual Analysis sub-agents
 
 For each batch prompt file in `_temp/visual-review/batch-prompts/`:
 
 1. **Check resumability**: if `_temp/visual-review/batch-results/batch-NN-results.json`
    already exists, skip that batch
-2. **Spawn a sub-agent** with:
-   - The batch prompt file content as its task (contains endpoint table,
-     workflow, and JSON output schema)
-   - Playwright MCP access
-   - **Nothing else** — no heuristic files, no CSVs, no data files
-3. Each sub-agent will:
-   - Open `https://pine-j.github.io/Roadway-Segment-Limits/`
-   - Run `await window.__waitForSegments()` to confirm the app is loaded
-   - For each endpoint: select segment, navigate to coordinates, take close
-     and context screenshots, record visual assessment
+2. **Verify screenshot prerequisites**: confirm that all screenshot files
+   referenced in the batch prompt exist on disk and are non-empty. If any are
+   missing, re-run `batch-screenshots.py` for that batch range before
+   dispatching the sub-agent.
+3. **Spawn a sub-agent** with:
+   - The batch prompt file content as its task (contains endpoint table with
+     screenshot file paths, assessment criteria, and JSON output schema)
+   - Read tool access (to view the screenshot image files)
+   - **Nothing else** — no heuristic files, no CSVs, no data files, no
+     Playwright MCP
+4. Each sub-agent will:
+   - For each endpoint: read the close and context screenshot files using the
+     Read tool (which displays images visually)
+   - Assess each endpoint based on visible road labels, route shields, county
+     boundaries, and segment highlight position
    - Write structured JSON to
      `_temp/visual-review/batch-results/batch-NN-results.json`
 
-**After each sub-agent completes**, verify that the screenshot files it
-references actually exist on disk before accepting its results. For each
-entry in the batch JSON, check that both
-`_temp/visual-review/screenshots/batch-NN-ep-MM-close.png` and
-`batch-NN-ep-MM-context.png` are present and non-empty. If any are missing,
-the sub-agent failed silently — delete the batch results JSON and re-run it.
+**After each sub-agent completes**, verify that:
+- The results JSON exists and is valid
+- The entry count matches the endpoint count in the batch prompt
+- All referenced screenshot filenames correspond to real files on disk
 
 **Run sub-agents in waves of 3–5 batches at a time**, not all at once. Each
-sub-agent needs its own Playwright browser session, navigates to multiple
-endpoints, takes screenshots, and records assessments — that is a lot of
-context and runtime per batch. Spawning every remaining batch in parallel will
-likely hit resource limits (browser sessions, memory, rate limits). Complete
-one wave, verify the outputs, then start the next.
+sub-agent reads 15 endpoint pairs of screenshots (30 images) and produces
+detailed assessments — this uses significant context. Complete one wave,
+verify the outputs, then start the next.
 
 Each sub-agent has its own isolated context and cannot see the other batches'
 results or any heuristic data.
 
-### Phase 3b: Spot-check visual results
+### Phase 3c: Spot-check visual results
 
-After each wave of visual review sub-agents completes, spot-check the new
+After each wave of visual analysis sub-agents completes, spot-check the new
 batch result files before starting the next wave. Do NOT skip this step.
 
 **Known failure modes to watch for** (discovered in earlier runs):
 
-- **Blank/blue screenshots**: basemap tiles sometimes fail to render. The
-  batch prompt now instructs sub-agents to detect and retry blank
-  screenshots before recording results. If a blank screenshot still slips
-  through (visible in the contact sheet or during step 5 review), the
-  batch must be re-run for affected endpoints.
-- **GAP segment selection**: GAP segments use unsuffixed names (e.g.,
-  `SH 121`) but the web app only has suffixed variants (`SH 121 - A`,
-  `SH 121 - B`, `SH 121 - C`). The batch prompt now includes a
-  "GAP segment selection" section telling the agent to select all corridor
-  segments. If you see a GAP endpoint screenshot without a teal highlight,
-  the agent ignored this instruction — re-run the batch.
-- **Data leakage via popups**: if a screenshot shows a feature popup open
-  (showing TxDOT attributes), the visual independence is compromised. The
-  batch prompt explicitly forbids clicking roadway lines. Flag these
-  endpoints and re-run them.
+- **Blank/blue screenshots**: basemap tiles sometimes fail to render during
+  capture. The batch prompt instructs analysis agents to flag these as
+  low-confidence. If multiple endpoints in a batch have blank screenshots,
+  re-run `batch-screenshots.py --overwrite --start-batch N --end-batch N`
+  to recapture, then re-run the analysis.
+- **Missing teal highlight**: corridor-level segments (e.g., `SH 360`,
+  `FM 1189`) require selecting all sub-segments. The `batch-screenshots.py`
+  script handles this via `__selectCorridorSegments`. If a screenshot lacks
+  the teal highlight, re-run the capture with `--local` flag (uses updated
+  app.js with corridor support).
+- **Fabricated observations**: the analysis agent may describe labels or
+  shields that aren't actually visible in the screenshot. Cross-reference
+  `visible_labels` and `visible_shields` against what you can see in the
+  screenshots during disagreement review.
 
 For each new `batch-NN-results.json`:
 
@@ -272,36 +301,29 @@ For each new `batch-NN-results.json`:
      shows something else. Update `limit_identification`, set
      `visual_confidence` to the Orchestrator's assessed confidence, and
      note `"orchestrator_corrected": true`.
-   - **Inconclusive — request new screenshot** — if the existing
-     screenshots are not clear enough to make a determination (labels
-     too small, tiles didn't load, wrong zoom level, endpoint is at the
-     edge of frame), the Orchestrator should request a fresh screenshot
-     before giving up. To do this:
+   - **Inconclusive — request rescan** — if the existing screenshots
+     are not clear enough to make a determination (labels too small,
+     tiles didn't load, wrong zoom level, endpoint at edge of frame),
+     re-capture at a different zoom before giving up:
 
-     1. Decide what would help: zoom in closer (zoom 18–19) to read
-        small labels, zoom out further (zoom 13–14) to see surrounding
-        context and county lines, or pan to re-center the endpoint.
-     2. Spawn a single Playwright sub-agent with these instructions:
-        - Navigate to the web app and run `__waitForSegments()`
-        - Select the segment: `__selectAndZoomSegment("SEGMENT_NAME")`
-        - Go to the specific coordinates at the requested zoom level
-        - Take a screenshot and save it as
-          `_temp/visual-review/screenshots/batch-NN-ep-MM-rescan.png`
-        - The sub-agent needs only coordinates and zoom — do NOT pass
-          heuristic or visual results to it
-     3. Review the new screenshot and make a determination. If still
-        inconclusive after the rescan, set `visual_confidence` to
-        `"low"` so reconciliation routes it to `conflict` for human
-        review.
+     ```bash
+     # Example: re-capture batch 02 endpoint 10 at zoom 19 for close
+     python batch-screenshots.py --start-batch 2 --end-batch 2 \
+       --close-zoom 19 --context-zoom 14 --overwrite
+     ```
+
+     Or for a single targeted rescan, use a one-off Playwright call:
+     ```python
+     from playwright.sync_api import sync_playwright
+     # Navigate, select segment, goTo at desired zoom, takeScreenshot
+     # Save as batch-NN-ep-MM-rescan.png
+     ```
 
      Common situations that call for a rescan:
-     - Labels are rendered too small at zoom 17 — try zoom 19
-     - County boundary line might be just outside the frame — try
-       zoom 14 to see the wider area
-     - Dense interchange with overlapping labels — try zoom 19 and
-       also a panned view slightly off-center
-     - Tiles failed to render (blank or grey areas) — retry at the
-       same zoom level
+     - Labels too small at zoom 17 — try zoom 19
+     - County boundary line just outside frame — try zoom 14
+     - Dense interchange with overlapping labels — zoom 19 + panned
+     - Tiles failed to render — retry at same zoom
 
    This step is what makes the pipeline reliable. The visual sub-agents
    operate without heuristic context, so they can miss things the
@@ -435,6 +457,7 @@ Visual Review Agents should explicitly inspect:
 - `Scripts/generate_visual_review_prompts.py`
 - `Scripts/reconcile_results.py`
 - `Scripts/generate_review_dashboard.py`
+- `batch-screenshots.py` — Playwright library + ArcGIS native screenshot capture
 - `verification-log.md`
 - `Web-App/`
 - `Project-Plan/master-plan.md`
