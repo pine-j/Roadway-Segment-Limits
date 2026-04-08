@@ -466,7 +466,17 @@ require([
 
   }
 
-  // Expose internals for batch screenshot automation
+  // ── Automation API ──────────────────────────────────────────────
+  // The following window.__ functions are the public contract used by
+  // batch-screenshots.py (Playwright-based batch capture). The batch
+  // script verifies these exist at runtime and will fail fast if any
+  // are missing. If you rename, remove, or change the signature of
+  // any of these functions, update batch-screenshots.py to match.
+  //
+  // These functions are also used by the web app's own UI (segment
+  // selection, zoom), so they must continue to work standalone in
+  // the browser without Playwright.
+  // ────────────────────────────────────────────────────────────────
   window.__segments_state = state;
   window.__render = render;
   window.__syncSelectedGraphics = syncSelectedGraphics;
@@ -529,6 +539,27 @@ require([
       format: "png",
     });
     return screenshot.dataUrl;
+  };
+
+  window.__selectCorridorSegments = async function (segmentName) {
+    // First try exact match
+    const exact = state.segments.find((s) => s.label === segmentName);
+    if (exact) {
+      return window.__selectAndZoomSegment(segmentName);
+    }
+
+    // No exact match — select all sub-segments that start with this name
+    const prefix = segmentName + " - ";
+    const matches = state.segments.filter((s) => s.label.startsWith(prefix));
+    if (matches.length === 0) {
+      return false;
+    }
+
+    state.selectedSegmentIds.clear();
+    matches.forEach((m) => state.selectedSegmentIds.add(m.objectId));
+    render();
+    await syncSelectedGraphics();
+    return matches.length;
   };
 
   window.__navigateAndCapture = async function (_segmentName, lon, lat, closeZoom, contextZoom) {

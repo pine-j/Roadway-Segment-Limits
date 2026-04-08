@@ -5,6 +5,12 @@ Uses Playwright as a Python library (NOT MCP) to open the web app once,
 then iterates through every endpoint in the manifest and captures close/context
 screenshots using ArcGIS MapView.takeScreenshot() — the GPU-native capture path.
 
+Depends on helper functions defined in Web-App/app.js:
+    __waitForSegments, __waitForTiles, __captureView,
+    __selectCorridorSegments, __navigateAndCapture
+If you change or rename those functions in app.js, update REQUIRED_HELPERS
+below and any page.evaluate calls that reference them.
+
 Usage:
     python batch-screenshots.py [options]
 
@@ -69,89 +75,12 @@ def js_str(value: str) -> str:
     return json.dumps(value)
 
 
-INJECT_HELPERS = """
-window.__waitForTiles = function (timeout) {
-    timeout = timeout || 15000;
-    var view = window.__mapView;
-    return new Promise(function (resolve) {
-        if (!view.updating) { resolve(true); return; }
-        var settled = false;
-        var handle = view.watch("updating", function (updating) {
-            if (!updating && !settled) {
-                settled = true;
-                handle.remove();
-                resolve(true);
-            }
-        });
-        setTimeout(function () {
-            if (!settled) {
-                settled = true;
-                handle.remove();
-                resolve(false);
-            }
-        }, timeout);
-    });
-};
-
-window.__captureView = async function (width, height) {
-    var view = window.__mapView;
-    await window.__waitForTiles(15000);
-    var screenshot = await view.takeScreenshot({
-        width: width || 1920,
-        height: height || 1080,
-        format: "png"
-    });
-    return screenshot.dataUrl;
-};
-
-window.__selectCorridorSegments = async function (segmentName) {
-    // Access state/render/sync — prefer exposed refs, fall back to __selectAndZoomSegment
-    var st = window.__segments_state;
-    var renderFn = window.__render;
-    var syncFn = window.__syncSelectedGraphics;
-
-    if (!st || !renderFn || !syncFn) {
-        // Fallback: the old app.js without exposed internals — just use exact match
-        return await window.__selectAndZoomSegment(segmentName);
-    }
-
-    // First try exact match
-    var exact = st.segments.find(function(s) { return s.label === segmentName; });
-    if (exact) {
-        return await window.__selectAndZoomSegment(segmentName);
-    }
-
-    // No exact match — select all sub-segments that start with this name
-    var prefix = segmentName + " - ";
-    var matches = st.segments.filter(function(s) {
-        return s.label.indexOf(prefix) === 0;
-    });
-    if (matches.length === 0) return false;
-
-    st.selectedSegmentIds.clear();
-    matches.forEach(function(m) { st.selectedSegmentIds.add(m.objectId); });
-    renderFn();
-    await syncFn();
-    return matches.length;
-};
-
-window.__navigateAndCapture = async function (segmentName, lon, lat, closeZoom, contextZoom) {
-    var view = window.__mapView;
-    closeZoom = closeZoom || 17;
-    contextZoom = contextZoom || 15;
-
-    // Segment selection is handled by the caller — just navigate and capture
-    await view.goTo({ center: [lon, lat], zoom: closeZoom }, { animate: false });
-    await window.__waitForTiles(15000);
-    var closeImg = await view.takeScreenshot({ width: 1920, height: 1080, format: "png" });
-
-    await view.goTo({ center: [lon, lat], zoom: contextZoom }, { animate: false });
-    await window.__waitForTiles(15000);
-    var contextImg = await view.takeScreenshot({ width: 1920, height: 1080, format: "png" });
-
-    return { close: closeImg.dataUrl, context: contextImg.dataUrl };
-};
-"""
+REQUIRED_HELPERS = [
+    "__waitForTiles",
+    "__captureView",
+    "__selectCorridorSegments",
+    "__navigateAndCapture",
+]
 
 
 def main():
@@ -192,9 +121,19 @@ def main():
         seg_count = page.evaluate("window.__waitForSegments()")
         print(f"App ready — {seg_count} segments loaded")
 
-        # Inject helper functions into the page
-        page.evaluate(INJECT_HELPERS)
-        print("Injected screenshot helpers")
+        # Verify that app.js exposes the required helper functions
+        missing = page.evaluate(
+            "(" + json.dumps(REQUIRED_HELPERS) + ").filter(function(n) {"
+            "  return typeof window[n] !== 'function';"
+            "})"
+        )
+        if missing:
+            print(f"ERROR: app.js is missing required helpers: {missing}")
+            print("The deployed app.js is outdated. Use --local with a local server,")
+            print("or push the latest app.js to GitHub Pages.")
+            browser.close()
+            sys.exit(1)
+        print("Verified app helpers: all present")
 
         captured = 0
         skipped = 0
