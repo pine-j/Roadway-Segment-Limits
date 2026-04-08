@@ -144,12 +144,32 @@ For each row in the endpoint table:
 1. **Read the CLOSE screenshot** using the Read tool with the file path from
    the table. This is an image file — the Read tool will display it visually.
 2. **Read the CONTEXT screenshot** the same way.
-3. **Quality-check both screenshots** before recording results:
-   - If the screenshot is blank/grey/blue (tile rendering failure), note it as
-     `visual_confidence: "low"` with reasoning explaining the issue
-   - If no thick segment line is visible, note this in reasoning
-   - If road labels are unreadable, use what you can see from the context view
-     and set confidence accordingly
+3. **Quality-check both screenshots** before recording results. If any of
+   these problems exist, you MUST flag the endpoint for recapture by setting
+   `"needs_rescan": true` in the JSON output for that endpoint:
+
+   - **Blank / grey / blue screenshot** — tiles failed to render, no roads
+     visible. Set `needs_rescan: true`, reasoning: describe which screenshot
+     is blank (close, context, or both).
+   - **No thick segment line visible** — the segment was not selected or
+     highlighted during capture. Set `needs_rescan: true`, reasoning:
+     "no segment highlight visible in screenshots".
+   - **Road labels unreadable** — tiles loaded but text is too small to read
+     at the captured zoom level. Try to use the context view first. If
+     neither view has readable labels near the endpoint, set
+     `needs_rescan: true`, reasoning: "labels too small to read at current
+     zoom — need closer view".
+   - **Endpoint off-screen** — the thick segment line is visible but its
+     termination point is not in frame. Set `needs_rescan: true`, reasoning:
+     "endpoint not visible in frame".
+
+   For flagged endpoints: still fill in all other fields with your best guess
+   (or null/empty where you truly cannot determine), set
+   `visual_confidence: "low"`, and include `"needs_rescan": true`. The
+   orchestrator will recapture and re-run analysis for these endpoints.
+
+   If the screenshots are usable (even if not perfect), do NOT set
+   `needs_rescan`. Only flag truly unusable screenshots.
 4. **Assess the endpoint** based on what you see (details below).
 5. **Record your assessment** in the JSON output.
 
@@ -232,8 +252,9 @@ Write JSON, not markdown, to `{results_path}`.
     "is_offset": false,
     "offset_direction": null,
     "offset_from": null,
-    "visual_confidence": "high",
-    "reasoning": "Why this gap-piece endpoint is bounded by the identified road"
+    "visual_confidence": "low",
+    "needs_rescan": true,
+    "reasoning": "Close screenshot is blank - tiles failed to render. Cannot identify endpoint."
   }}
 ]
 ```
@@ -245,6 +266,9 @@ Key fields for reconciliation:
 - `is_offset`, `offset_direction`, and `offset_from`: structured offset data
 - `county_boundary_at_endpoint`: true only if the segment endpoint is the county line itself
 - `visible_labels` and `visible_shields`: raw observations for the audit trail
+- `needs_rescan`: set to `true` ONLY if the screenshot is unusable (blank,
+  no highlight, unreadable labels, endpoint off-screen). Omit this field
+  entirely when the screenshot is usable.
 """
 
 

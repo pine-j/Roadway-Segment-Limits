@@ -240,6 +240,11 @@ affected batch range.
 
 ### Phase 3b: Dispatch Visual Analysis sub-agents
 
+Phase 3b is iterative: dispatch agents, collect results, recapture any bad
+screenshots, re-analyze — repeat until every endpoint has a clean result.
+
+#### Initial dispatch
+
 For each batch prompt file in `_temp/visual-review/batch-prompts/`:
 
 1. **Check resumability**: if `_temp/visual-review/batch-results/batch-NN-results.json`
@@ -259,21 +264,56 @@ For each batch prompt file in `_temp/visual-review/batch-prompts/`:
      Read tool (which displays images visually)
    - Assess each endpoint based on visible road labels, route shields, county
      boundaries, and segment highlight position
+   - If a screenshot is unusable (blank, no segment highlight, labels
+     unreadable), the agent must still write a result entry but set
+     `"needs_rescan": true` and `visual_confidence: "low"` with reasoning
+     explaining the specific issue (e.g., "close screenshot is blank — tiles
+     failed to render", "labels too small to read at zoom 17")
    - Write structured JSON to
      `_temp/visual-review/batch-results/batch-NN-results.json`
 
-**After each sub-agent completes**, verify that:
-- The results JSON exists and is valid
-- The entry count matches the endpoint count in the batch prompt
-- All referenced screenshot filenames correspond to real files on disk
-
 **Run sub-agents in waves of 3–5 batches at a time**, not all at once. Each
 sub-agent reads 15 endpoint pairs of screenshots (30 images) and produces
-detailed assessments — this uses significant context. Complete one wave,
-verify the outputs, then start the next.
+detailed assessments — this uses significant context. Complete one wave, run
+the recapture loop, then start the next.
 
 Each sub-agent has its own isolated context and cannot see the other batches'
 results or any heuristic data.
+
+#### Recapture loop (after each wave)
+
+After each wave of sub-agents completes:
+
+1. **Validate results**: check that each batch JSON exists, has the correct
+   endpoint count, and all referenced screenshots are on disk.
+2. **Collect rescan requests**: scan each batch result for entries with
+   `"needs_rescan": true`. Group them by batch number.
+3. **If no rescans needed**: proceed to the next wave (or Phase 3c if all
+   waves are done).
+4. **If rescans are needed**: for each flagged endpoint, determine what would
+   help based on the agent's reasoning:
+   - "blank screenshot" / "tiles failed" → recapture at same zoom
+   - "labels too small" → recapture with `--close-zoom 19`
+   - "no segment highlight" → recapture with `--local` (corridor support)
+   - "county boundary just outside frame" → recapture with
+     `--context-zoom 13`
+
+   Run `batch-screenshots.py` with the appropriate flags for the affected
+   batch range:
+   ```bash
+   python batch-screenshots.py --start-batch N --end-batch N --overwrite \
+     --close-zoom 19 --context-zoom 14
+   ```
+
+5. **Re-analyze flagged endpoints**: delete the affected batch results JSON
+   and re-dispatch the sub-agent for that batch. The agent will now see the
+   fresh screenshots.
+6. **Repeat** up to 2 times per endpoint. If an endpoint still has
+   `needs_rescan: true` after 2 recaptures, accept the low-confidence result
+   and let it flow to reconciliation as a `conflict` for human review.
+
+This loop ensures that only clean, readable screenshots produce visual
+results. Bad screenshots are fixed at the source, not patched downstream.
 
 ### Phase 3c: Spot-check visual results
 
