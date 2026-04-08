@@ -1,5 +1,10 @@
 # Segment Limit Detection Logic
 
+> **Related**: [SEGMENT_LIMITS_PLAYBOOK.md](SEGMENT_LIMITS_PLAYBOOK.md) defines
+> the endpoint scenarios, priority rules, and decision logic used by both AI
+> agents and human reviewers. This document covers the heuristic engine
+> internals; the playbook covers how limits should be identified in practice.
+
 This document explains how [Scripts/identify_segment_limits.py](Scripts/identify_segment_limits.py)
 identifies `Limits From` and `Limits To` for FTW segments, what data sources it
 uses, how its heuristics choose between candidate endpoints, and how the
