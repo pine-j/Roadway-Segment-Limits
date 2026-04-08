@@ -4,8 +4,12 @@ require([
   "esri/layers/FeatureLayer",
   "esri/layers/GraphicsLayer",
   "esri/layers/VectorTileLayer",
+  "esri/Graphic",
   "esri/geometry/Extent",
   "esri/geometry/Polyline",
+  "esri/geometry/geometryEngine",
+  "esri/geometry/operators/boundaryOperator",
+  "esri/geometry/operators/labelPointOperator",
   "esri/widgets/Home",
   "esri/widgets/Expand",
   "esri/widgets/LayerList",
@@ -15,8 +19,12 @@ require([
   FeatureLayer,
   GraphicsLayer,
   VectorTileLayer,
+  Graphic,
   Extent,
   Polyline,
+  geometryEngine,
+  boundaryOperator,
+  labelPointOperator,
   Home,
   Expand,
   LayerList,
@@ -27,7 +35,16 @@ require([
     "https://tiles.arcgis.com/tiles/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Vector_Tile_Basemap/VectorTileServer";
   const TXDOT_ROADS_URL =
     "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadways/FeatureServer/0";
+  const COUNTY_BOUNDARY_URL =
+    "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/Texas_County_Boundaries/FeatureServer/0";
   const HIGHWAY_DESIGNATION_BASE_URL = "https://www.dot.state.tx.us/tpp/hdf_search.html";
+  const COUNTY_LABEL_SWITCH_SCALE = 1250000;
+  const COUNTY_LABEL_VIEW_PADDING = 72;
+  const COUNTY_LABEL_EDGE_MARGIN = 18;
+  const COUNTY_LABEL_OFFSET_PX = 20;
+  const COUNTY_LABEL_MIN_VISIBLE_PATH_PX = 96;
+  const COUNTY_LABEL_SEGMENT_ENDPOINT_MARGIN_PX = 26;
+  const COUNTY_STYLE_LAYER_PATTERN = /(?:county|cnty|admin[-_ ]?2|adm[-_ ]?2)/i;
 
   const state = {
     activeCategory: "All",
@@ -45,6 +62,13 @@ require([
     clearSelectionButton: document.getElementById("clear-selection"),
     zoomSelectedButton: document.getElementById("zoom-selected"),
   };
+
+  let countyBoundaryLayer = null;
+  let countyBoundaryHitLayer = null;
+  let countyBoundaryHoverToken = 0;
+  let countyLabelOverlay = null;
+  let countyLabelRefreshHandle = 0;
+  let countyLabelRecords = [];
 
   const txdotVectorLayer = new VectorTileLayer({
     url: TXDOT_VECTOR_URL,
@@ -158,6 +182,672 @@ require([
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#39;");
+  }
+
+  function normalizeCountyName(value) {
+    return String(value ?? "")
+      .trim()
+      .replace(/\s+County$/i, "");
+  }
+
+  function getRelevantCountyNames() {
+    const countyNames = new Set();
+
+    state.segments.forEach((segment) => {
+      String(segment.county ?? "")
+        .split(/\s*(?:,|;|\/|&|\band\b)\s*/i)
+        .map(normalizeCountyName)
+        .filter(Boolean)
+        .forEach((countyName) => countyNames.add(countyName));
+    });
+
+    return Array.from(countyNames).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }
+
+  function buildCountyWhereClause(countyNames) {
+    if (!countyNames.length) {
+      return "1=0";
+    }
+
+    const escapedNames = countyNames.map((countyName) => `'${countyName.replaceAll("'", "''")}'`);
+    return `CNTY_NM IN (${escapedNames.join(", ")})`;
+  }
+
+  function getCountyStyleLayerIds(vectorTileLayer) {
+    const styleLayers = vectorTileLayer?.currentStyleInfo?.style?.layers ?? [];
+    return Array.from(
+      new Set(
+        styleLayers
+          .map((styleLayer) => styleLayer?.id)
+          .filter((id) => typeof id === "string" && COUNTY_STYLE_LAYER_PATTERN.test(id)),
+      ),
+    );
+  }
+
+  async function hideCountyStyleLayers(vectorTileLayer) {
+    if (!vectorTileLayer || vectorTileLayer.type !== "vector-tile") {
+      return;
+    }
+
+    try {
+      await vectorTileLayer.when();
+      getCountyStyleLayerIds(vectorTileLayer).forEach((layerId) => {
+        vectorTileLayer.setStyleLayerVisibility(layerId, "none");
+      });
+    } catch (error) {
+      console.warn("Unable to hide county style layers.", error);
+    }
+  }
+
+  async function hideCountyStyleLayersFromMap() {
+    const vectorTileLayers = [
+      ...(map.basemap?.baseLayers?.toArray?.() ?? []),
+      ...(map.basemap?.referenceLayers?.toArray?.() ?? []),
+      txdotVectorLayer,
+    ];
+
+    await Promise.all(vectorTileLayers.map((layer) => hideCountyStyleLayers(layer)));
+  }
+
+  function createCountyPopupTemplate() {
+    return {
+      title: "{COUNTY_LABEL}",
+      content: '<div class="county-popup">County line</div>',
+    };
+  }
+
+  function createCountyLabelAttributes(countyName, objectId) {
+    return {
+      OBJECTID: objectId,
+      CNTY_NM: countyName,
+      COUNTY_LABEL: countyName ? `${countyName} County` : "County",
+    };
+  }
+
+  function formatCountyDisplayLabel(countyName) {
+    return countyName ? `${countyName} County` : "County";
+  }
+
+  function ensureCountyLabelOverlay() {
+    if (countyLabelOverlay?.isConnected) {
+      return countyLabelOverlay;
+    }
+
+    if (!view.container) {
+      return null;
+    }
+
+    countyLabelOverlay = document.createElement("div");
+    countyLabelOverlay.className = "county-label-overlay";
+    view.container.appendChild(countyLabelOverlay);
+    return countyLabelOverlay;
+  }
+
+  function setCountyLabelOverlaySuspended(isSuspended) {
+    const overlay = ensureCountyLabelOverlay();
+    if (!overlay) {
+      return;
+    }
+
+    overlay.classList.toggle("is-suspended", Boolean(isSuspended));
+  }
+
+  function scheduleCountyLabelRefresh() {
+    if (!countyLabelRecords.length || countyLabelRefreshHandle || !view.stationary) {
+      return;
+    }
+
+    countyLabelRefreshHandle = requestAnimationFrame(() => {
+      countyLabelRefreshHandle = 0;
+      refreshCountyLabelOverlay();
+    });
+  }
+
+  function syncCountyLabelOverlayWithView() {
+    if (!countyLabelRecords.length) {
+      return;
+    }
+
+    const shouldSuspend = !view.stationary;
+    setCountyLabelOverlaySuspended(shouldSuspend);
+
+    if (!shouldSuspend) {
+      scheduleCountyLabelRefresh();
+    }
+  }
+
+  function extentsIntersect(firstExtent, secondExtent) {
+    return Boolean(
+      firstExtent &&
+        secondExtent &&
+        firstExtent.xmin <= secondExtent.xmax &&
+        firstExtent.xmax >= secondExtent.xmin &&
+        firstExtent.ymin <= secondExtent.ymax &&
+        firstExtent.ymax >= secondExtent.ymin,
+    );
+  }
+
+  function isScreenPointFinite(point) {
+    return Boolean(point && Number.isFinite(point.x) && Number.isFinite(point.y));
+  }
+
+  function isScreenPointInRect(point, rect) {
+    return Boolean(
+      isScreenPointFinite(point) &&
+        point.x >= rect.xmin &&
+        point.x <= rect.xmax &&
+        point.y >= rect.ymin &&
+        point.y <= rect.ymax,
+    );
+  }
+
+  function getExpandedScreenRect(padding = 0) {
+    return {
+      xmin: -padding,
+      ymin: -padding,
+      xmax: view.width + padding,
+      ymax: view.height + padding,
+    };
+  }
+
+  function getInsetScreenRect(margin = 0) {
+    return {
+      xmin: margin,
+      ymin: margin,
+      xmax: Math.max(margin, view.width - margin),
+      ymax: Math.max(margin, view.height - margin),
+    };
+  }
+
+  function pointsAlmostEqual(firstPoint, secondPoint, epsilon = 0.5) {
+    return (
+      Math.abs(firstPoint.x - secondPoint.x) <= epsilon &&
+      Math.abs(firstPoint.y - secondPoint.y) <= epsilon
+    );
+  }
+
+  function clipSegmentToRect(startPoint, endPoint, rect) {
+    let startRatio = 0;
+    let endRatio = 1;
+    const deltaX = endPoint.x - startPoint.x;
+    const deltaY = endPoint.y - startPoint.y;
+    const edges = [
+      [-deltaX, startPoint.x - rect.xmin],
+      [deltaX, rect.xmax - startPoint.x],
+      [-deltaY, startPoint.y - rect.ymin],
+      [deltaY, rect.ymax - startPoint.y],
+    ];
+
+    for (const [p, q] of edges) {
+      if (p === 0) {
+        if (q < 0) {
+          return null;
+        }
+        continue;
+      }
+
+      const ratio = q / p;
+      if (p < 0) {
+        if (ratio > endRatio) {
+          return null;
+        }
+        if (ratio > startRatio) {
+          startRatio = ratio;
+        }
+      } else {
+        if (ratio < startRatio) {
+          return null;
+        }
+        if (ratio < endRatio) {
+          endRatio = ratio;
+        }
+      }
+    }
+
+    if (startRatio > endRatio) {
+      return null;
+    }
+
+    return {
+      start: {
+        x: startPoint.x + deltaX * startRatio,
+        y: startPoint.y + deltaY * startRatio,
+      },
+      end: {
+        x: startPoint.x + deltaX * endRatio,
+        y: startPoint.y + deltaY * endRatio,
+      },
+    };
+  }
+
+  function createMapPoint(x, y, spatialReference) {
+    return {
+      type: "point",
+      x,
+      y,
+      spatialReference,
+    };
+  }
+
+  function buildVisibleCountyScreenPaths(countyRecord, clipRect) {
+    const screenPaths = [];
+    const spatialReference = countyRecord.boundaryGeometry.spatialReference;
+
+    countyRecord.boundaryGeometry.paths.forEach((path) => {
+      let currentVisiblePath = [];
+      let previousScreenPoint = null;
+
+      path.forEach((coordinates) => {
+        const currentScreenPoint = view.toScreen(
+          createMapPoint(coordinates[0], coordinates[1], spatialReference),
+        );
+
+        if (isScreenPointFinite(previousScreenPoint) && isScreenPointFinite(currentScreenPoint)) {
+          const clippedSegment = clipSegmentToRect(previousScreenPoint, currentScreenPoint, clipRect);
+
+          if (clippedSegment) {
+            const lastPoint = currentVisiblePath[currentVisiblePath.length - 1];
+            if (!lastPoint || !pointsAlmostEqual(lastPoint, clippedSegment.start)) {
+              currentVisiblePath.push(clippedSegment.start);
+            }
+            currentVisiblePath.push(clippedSegment.end);
+          } else if (currentVisiblePath.length > 1) {
+            screenPaths.push(currentVisiblePath);
+            currentVisiblePath = [];
+          }
+        } else if (currentVisiblePath.length > 1) {
+          screenPaths.push(currentVisiblePath);
+          currentVisiblePath = [];
+        }
+
+        previousScreenPoint = currentScreenPoint;
+      });
+
+      if (currentVisiblePath.length > 1) {
+        screenPaths.push(currentVisiblePath);
+      }
+    });
+
+    return screenPaths;
+  }
+
+  function getPathLength(path) {
+    let totalLength = 0;
+
+    for (let index = 1; index < path.length; index += 1) {
+      const previousPoint = path[index - 1];
+      const currentPoint = path[index];
+      totalLength += Math.hypot(currentPoint.x - previousPoint.x, currentPoint.y - previousPoint.y);
+    }
+
+    return totalLength;
+  }
+
+  function projectPointOntoPath(path, targetPoint) {
+    let traversedLength = 0;
+    let closestPoint = null;
+
+    for (let index = 1; index < path.length; index += 1) {
+      const startPoint = path[index - 1];
+      const endPoint = path[index];
+      const segmentDeltaX = endPoint.x - startPoint.x;
+      const segmentDeltaY = endPoint.y - startPoint.y;
+      const segmentLength = Math.hypot(segmentDeltaX, segmentDeltaY);
+
+      if (!segmentLength) {
+        continue;
+      }
+
+      const rawRatio =
+        ((targetPoint.x - startPoint.x) * segmentDeltaX +
+          (targetPoint.y - startPoint.y) * segmentDeltaY) /
+        (segmentLength * segmentLength);
+      const ratio = Math.max(0, Math.min(1, rawRatio));
+      const projectedPoint = {
+        x: startPoint.x + segmentDeltaX * ratio,
+        y: startPoint.y + segmentDeltaY * ratio,
+      };
+      const distance = Math.hypot(targetPoint.x - projectedPoint.x, targetPoint.y - projectedPoint.y);
+
+      if (!closestPoint || distance < closestPoint.distance) {
+        closestPoint = {
+          point: projectedPoint,
+          distance,
+          ratio,
+          segmentLength,
+          tangentX: segmentDeltaX,
+          tangentY: segmentDeltaY,
+          startPoint,
+          endPoint,
+        };
+      }
+
+      traversedLength += segmentLength;
+    }
+
+    return closestPoint;
+  }
+
+  function normalizeCountyLabelAngle(angle) {
+    let normalizedAngle = ((angle % 360) + 360) % 360;
+
+    if (normalizedAngle > 180) {
+      normalizedAngle -= 360;
+    }
+
+    if (normalizedAngle > 90) {
+      normalizedAngle -= 180;
+    } else if (normalizedAngle < -90) {
+      normalizedAngle += 180;
+    }
+
+    return normalizedAngle;
+  }
+
+  function getCountyBoundaryLabelDirection(countyRecord, anchorPoint, normalX, normalY) {
+    const positiveScreenPoint = {
+      x: anchorPoint.x + normalX * COUNTY_LABEL_OFFSET_PX,
+      y: anchorPoint.y + normalY * COUNTY_LABEL_OFFSET_PX,
+    };
+    const negativeScreenPoint = {
+      x: anchorPoint.x - normalX * COUNTY_LABEL_OFFSET_PX,
+      y: anchorPoint.y - normalY * COUNTY_LABEL_OFFSET_PX,
+    };
+    const positiveMapPoint = view.toMap(positiveScreenPoint);
+    const negativeMapPoint = view.toMap(negativeScreenPoint);
+    const positiveInside =
+      positiveMapPoint && geometryEngine.contains(countyRecord.polygonGeometry, positiveMapPoint);
+    const negativeInside =
+      negativeMapPoint && geometryEngine.contains(countyRecord.polygonGeometry, negativeMapPoint);
+
+    if (positiveInside !== negativeInside) {
+      return positiveInside ? 1 : -1;
+    }
+
+    const countyCenterScreenPoint = view.toScreen(countyRecord.labelPointGeometry);
+    const fallbackSide =
+      (countyCenterScreenPoint.x - anchorPoint.x) * normalX +
+      (countyCenterScreenPoint.y - anchorPoint.y) * normalY;
+
+    return fallbackSide >= 0 ? 1 : -1;
+  }
+
+  function buildCenterCountyLabelCandidate(countyRecord, displayRect, viewCenter) {
+    const centerScreenPoint = view.toScreen(countyRecord.labelPointGeometry);
+    if (!isScreenPointInRect(centerScreenPoint, displayRect)) {
+      return null;
+    }
+
+    return {
+      countyName: countyRecord.countyName,
+      x: centerScreenPoint.x,
+      y: centerScreenPoint.y,
+      angle: 0,
+      mode: "center",
+      score: -Math.hypot(centerScreenPoint.x - viewCenter.x, centerScreenPoint.y - viewCenter.y),
+    };
+  }
+
+  function buildBoundaryCountyLabelCandidate(countyRecord, clipRect, displayRect, viewCenter) {
+    const visibleScreenPaths = buildVisibleCountyScreenPaths(countyRecord, clipRect);
+    let bestCandidate = null;
+
+    visibleScreenPaths.forEach((screenPath) => {
+      const totalVisibleLength = getPathLength(screenPath);
+      if (totalVisibleLength < COUNTY_LABEL_MIN_VISIBLE_PATH_PX) {
+        return;
+      }
+
+      const projectedPoint = projectPointOntoPath(screenPath, viewCenter);
+      if (!projectedPoint) {
+        return;
+      }
+
+      const tangentX = projectedPoint.tangentX;
+      const tangentY = projectedPoint.tangentY;
+      const tangentLength = projectedPoint.segmentLength;
+      if (tangentLength < 8) {
+        return;
+      }
+
+      const endpointMargin = Math.min(COUNTY_LABEL_SEGMENT_ENDPOINT_MARGIN_PX, tangentLength / 2);
+      const anchorRatio =
+        tangentLength > endpointMargin * 2
+          ? Math.min(
+              1 - endpointMargin / tangentLength,
+              Math.max(endpointMargin / tangentLength, projectedPoint.ratio),
+            )
+          : 0.5;
+      const anchorPoint = {
+        x: projectedPoint.startPoint.x + tangentX * anchorRatio,
+        y: projectedPoint.startPoint.y + tangentY * anchorRatio,
+      };
+      const normalX = -tangentY / tangentLength;
+      const normalY = tangentX / tangentLength;
+      const direction = getCountyBoundaryLabelDirection(
+        countyRecord,
+        anchorPoint,
+        normalX,
+        normalY,
+      );
+      const labelPoint = {
+        x: anchorPoint.x + normalX * COUNTY_LABEL_OFFSET_PX * direction,
+        y: anchorPoint.y + normalY * COUNTY_LABEL_OFFSET_PX * direction,
+      };
+
+      if (!isScreenPointInRect(labelPoint, displayRect)) {
+        return;
+      }
+
+      const candidate = {
+        countyName: countyRecord.countyName,
+        x: labelPoint.x,
+        y: labelPoint.y,
+        angle: normalizeCountyLabelAngle((Math.atan2(tangentY, tangentX) * 180) / Math.PI),
+        mode: "boundary",
+        score: totalVisibleLength - projectedPoint.distance * 1.15,
+      };
+
+      if (!bestCandidate || candidate.score > bestCandidate.score) {
+        bestCandidate = candidate;
+      }
+    });
+
+    return bestCandidate;
+  }
+
+  function createCountyLabelElement(labelCandidate) {
+    const labelElement = document.createElement("div");
+    labelElement.className = `county-dynamic-label ${
+      labelCandidate.mode === "boundary" ? "is-boundary" : "is-center"
+    }`;
+    labelElement.dataset.county = labelCandidate.countyName;
+    labelElement.dataset.mode = labelCandidate.mode;
+    labelElement.textContent = formatCountyDisplayLabel(labelCandidate.countyName);
+    labelElement.style.left = `${labelCandidate.x.toFixed(1)}px`;
+    labelElement.style.top = `${labelCandidate.y.toFixed(1)}px`;
+    labelElement.style.transform = `translate(-50%, -50%) rotate(${labelCandidate.angle.toFixed(
+      1,
+    )}deg)`;
+    return labelElement;
+  }
+
+  function refreshCountyLabelOverlay() {
+    const overlay = ensureCountyLabelOverlay();
+    if (!overlay) {
+      return;
+    }
+
+    if (!countyLabelRecords.length || !view.extent || !view.width || !view.height) {
+      overlay.replaceChildren();
+      return;
+    }
+
+    const useCenterLabels = view.scale >= COUNTY_LABEL_SWITCH_SCALE;
+    const clipRect = getExpandedScreenRect(COUNTY_LABEL_VIEW_PADDING);
+    const displayRect = getInsetScreenRect(COUNTY_LABEL_EDGE_MARGIN);
+    const viewCenter = {
+      x: view.width / 2,
+      y: view.height / 2,
+    };
+    const labelCandidates = countyLabelRecords
+      .filter((countyRecord) => extentsIntersect(countyRecord.extent, view.extent))
+      .map((countyRecord) =>
+        useCenterLabels
+          ? buildCenterCountyLabelCandidate(countyRecord, displayRect, viewCenter)
+          : buildBoundaryCountyLabelCandidate(countyRecord, clipRect, displayRect, viewCenter) ??
+              buildCenterCountyLabelCandidate(countyRecord, displayRect, viewCenter),
+      )
+      .filter(Boolean)
+      .sort((firstLabel, secondLabel) => firstLabel.score - secondLabel.score);
+
+    const labelFragment = document.createDocumentFragment();
+    labelCandidates.forEach((labelCandidate) => {
+      labelFragment.appendChild(createCountyLabelElement(labelCandidate));
+    });
+
+    overlay.replaceChildren(labelFragment);
+  }
+
+  async function showCountyBoundaryPopup(graphic, mapPoint) {
+    view.popup.open({
+      features: [graphic],
+      location: mapPoint,
+    });
+  }
+
+  async function initializeCountyBoundaries() {
+    try {
+      await hideCountyStyleLayersFromMap();
+
+      const countyNames = getRelevantCountyNames();
+      if (!countyNames.length) {
+        console.warn("No FTW county names were available for the county boundary layer.");
+        return;
+      }
+
+      const countyServiceLayer = new FeatureLayer({
+        url: COUNTY_BOUNDARY_URL,
+        popupEnabled: false,
+      });
+
+      await countyServiceLayer.load();
+
+      const query = countyServiceLayer.createQuery();
+      query.where = buildCountyWhereClause(countyNames);
+      query.returnGeometry = true;
+      query.outFields = ["OBJECTID", "CNTY_NM"];
+      query.orderByFields = ["CNTY_NM ASC"];
+
+      const result = await countyServiceLayer.queryFeatures(query);
+      const boundaryGraphics = [];
+      countyLabelRecords = [];
+
+      result.features.forEach((feature, index) => {
+        if (!feature.geometry) {
+          return;
+        }
+
+        const countyName = String(feature.attributes?.CNTY_NM ?? "").trim();
+        const objectId = Number(feature.attributes?.OBJECTID ?? index + 1);
+        const labelPointGeometry = labelPointOperator.execute(feature.geometry);
+        const boundaryGeometry = boundaryOperator.execute(feature.geometry);
+
+        if (!boundaryGeometry || !labelPointGeometry) {
+          return;
+        }
+
+        const attributes = createCountyLabelAttributes(countyName, objectId);
+
+        boundaryGraphics.push(
+          new Graphic({
+            geometry: boundaryGeometry,
+            attributes,
+          }),
+        );
+        countyLabelRecords.push({
+          countyName,
+          objectId,
+          extent: feature.geometry.extent,
+          polygonGeometry: feature.geometry,
+          labelPointGeometry,
+          boundaryGeometry,
+        });
+      });
+
+      if (!boundaryGraphics.length || !countyLabelRecords.length) {
+        return;
+      }
+
+      const spatialReference =
+        boundaryGraphics[0].geometry?.spatialReference || { wkid: 4326 };
+      const visibleBoundaryGraphics = boundaryGraphics.map((graphic) =>
+        typeof graphic.clone === "function" ? graphic.clone() : graphic,
+      );
+      const hitBoundaryGraphics = boundaryGraphics.map((graphic) =>
+        typeof graphic.clone === "function" ? graphic.clone() : graphic,
+      );
+
+      countyBoundaryLayer = new FeatureLayer({
+        title: "County Boundaries",
+        listMode: "hide",
+        popupTemplate: createCountyPopupTemplate(),
+        source: visibleBoundaryGraphics,
+        objectIdField: "OBJECTID",
+        fields: [
+          { name: "OBJECTID", alias: "OBJECTID", type: "oid" },
+          { name: "CNTY_NM", alias: "County Name", type: "string" },
+          { name: "COUNTY_LABEL", alias: "County Label", type: "string" },
+        ],
+        geometryType: "polyline",
+        spatialReference,
+        renderer: {
+          type: "simple",
+          symbol: {
+            type: "simple-line",
+            color: [194, 122, 41, 255],
+            width: 3,
+            cap: "round",
+            join: "round",
+          },
+        },
+        labelsVisible: false,
+      });
+
+      map.add(countyBoundaryLayer, 1);
+
+      countyBoundaryHitLayer = new FeatureLayer({
+        title: "County Boundary Hit Area",
+        listMode: "hide",
+        popupTemplate: createCountyPopupTemplate(),
+        source: hitBoundaryGraphics,
+        objectIdField: "OBJECTID",
+        fields: [
+          { name: "OBJECTID", alias: "OBJECTID", type: "oid" },
+          { name: "CNTY_NM", alias: "County Name", type: "string" },
+          { name: "COUNTY_LABEL", alias: "County Label", type: "string" },
+        ],
+        geometryType: "polyline",
+        spatialReference,
+        renderer: {
+          type: "simple",
+          symbol: {
+            type: "simple-line",
+            color: [194, 122, 41, 0],
+            width: 36,
+            cap: "round",
+            join: "round",
+          },
+        },
+        labelsVisible: false,
+      });
+
+      map.add(countyBoundaryHitLayer, 2);
+      ensureCountyLabelOverlay();
+      syncCountyLabelOverlayWithView();
+    } catch (error) {
+      console.warn("Unable to load county boundaries.", error);
+    }
   }
 
   function getVisibleSegments() {
@@ -799,11 +1489,47 @@ require([
   view.on("click", async (event) => {
     view.closePopup();
     roadHighlightLayer.removeAll();
+
+    const countyLayer = countyBoundaryHitLayer || countyBoundaryLayer;
+    if (countyLayer) {
+      const hitTestResult = await view.hitTest(event, { include: countyLayer });
+      const countyHit = hitTestResult.results.find((result) => result.graphic?.layer === countyLayer);
+
+      if (countyHit?.graphic) {
+        await showCountyBoundaryPopup(countyHit.graphic, event.mapPoint);
+        return;
+      }
+    }
+
     await showRoadPopup(event.mapPoint);
   });
 
+  view.on("pointer-move", async (event) => {
+    if (!countyBoundaryLayer) {
+      view.container.style.cursor = "default";
+      return;
+    }
+
+    const hoverToken = ++countyBoundaryHoverToken;
+    const hitTestResult = await view.hitTest(event, {
+      include: countyBoundaryHitLayer || countyBoundaryLayer,
+    });
+
+    if (hoverToken !== countyBoundaryHoverToken) {
+      return;
+    }
+
+    view.container.style.cursor = hitTestResult.results.length ? "pointer" : "default";
+  });
+
+  view.watch("stationary", syncCountyLabelOverlayWithView);
+  view.watch("rotation", syncCountyLabelOverlayWithView);
+  view.watch("width", syncCountyLabelOverlayWithView);
+  view.watch("height", syncCountyLabelOverlayWithView);
+
   Promise.all([segmentsLayer.load(), roadsQueryLayer.load(), view.when()])
     .then(loadSegments)
+    .then(initializeCountyBoundaries)
     .catch((error) => {
       console.error(error);
       elements.segmentList.innerHTML =

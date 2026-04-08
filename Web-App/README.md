@@ -26,3 +26,4 @@ http://localhost:8080/Segment-Limits/Web-App/
 - Use the checkboxes to keep multiple segments selected.
 - Click `Zoom selected` to fit all selected segments.
 - Click a TxDOT roadway on the map to view the roadway name.
+- Click a county boundary line to view the county boundary popup.
