@@ -86,7 +86,7 @@ Anti-bias is enforced by architecture: visual agents literally cannot access
               python Scripts/generate_visual_review_prompts.py
                      |
               Phase 3a: capture screenshots
-              python visual-review-screenshots.py
+              python Scripts/visual-review-screenshots.py
                      |
               Phase 3b: dispatch visual analysis agents
               (waves of 2-3, with rescan loop)
@@ -122,7 +122,7 @@ Anti-bias is enforced by architecture: visual agents literally cannot access
 | 0 | Pre-flight cleanup | Clear stale `_temp/` dirs | seconds |
 | 1 | Heuristic pass | `python Scripts/generate_visual_review_manifest.py` | ~2 min |
 | 2 | Generate prompts | `python Scripts/generate_visual_review_prompts.py` | seconds |
-| 3a | Capture screenshots | `python visual-review-screenshots.py --local` | ~5 min |
+| 3a | Capture screenshots | `python Scripts/visual-review-screenshots.py --local` | ~5 min |
 | 3b | Visual analysis | Sub-agents read screenshots + road data, produce JSON (waves of 2-3) | ~20-30 min |
 | 3c | Spot-check | Orchestrator verifies, reviews disagreements | ~10 min |
 | 4 | Reconcile | `python Scripts/reconcile_results.py` | seconds |
@@ -137,7 +137,7 @@ Phase 3 is the most complex phase. It is split into three sub-phases.
 
 ### Phase 3a: Capture screenshots
 
-`visual-review-screenshots.py` uses Playwright as a Python library (not MCP) with
+`Scripts/visual-review-screenshots.py` uses Playwright as a Python library (not MCP) with
 ArcGIS native `MapView.takeScreenshot()` for GPU-direct PNG capture.
 
 - Opens the web app once, iterates through all endpoints
@@ -285,7 +285,7 @@ Confidence scoring (matches `reconcile_results.py`):
 | File | Purpose |
 |------|---------|
 | `../../orchestrator.md` | **Runtime execution document** — follow this to run the pipeline |
-| `../../visual-review-screenshots.py` | Screenshot and road-query capture (Playwright + ArcGIS native) |
+| `../../Scripts/visual-review-screenshots.py` | Screenshot and road-query capture (Playwright + ArcGIS native) |
 | `Web-App/app.js` | Web app + automation API (`__selectCorridorSegments`, etc.) |
 | `Scripts/identify_segment_limits.py` | Heuristic analysis |
 | `Scripts/generate_visual_review_manifest.py` | Manifest + heuristic CSV generation |
@@ -297,7 +297,7 @@ Confidence scoring (matches `reconcile_results.py`):
 ## Web app automation API
 
 All helpers live in `Web-App/app.js` (single source of truth).
-`visual-review-screenshots.py` depends on these and verifies they exist at runtime.
+`Scripts/visual-review-screenshots.py` depends on these and verifies they exist at runtime.
 
 | Function | Purpose |
 |----------|---------|

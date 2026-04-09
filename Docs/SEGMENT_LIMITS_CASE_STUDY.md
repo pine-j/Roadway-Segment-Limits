@@ -485,7 +485,7 @@ formal two-pass pipeline:
    confidence scores, and gap-piece detail.
 2. The manifest is turned into batch prompts by
    [`Scripts/generate_visual_review_prompts.py`](../Scripts/generate_visual_review_prompts.py).
-3. [`visual-review-screenshots.py`](../visual-review-screenshots.py) captures
+3. [`Scripts/visual-review-screenshots.py`](../Scripts/visual-review-screenshots.py) captures
    close and context screenshots plus per-endpoint `roads.json` evidence for
    the visual pass.
 4. Independent Visual Review Agents inspect the pre-captured screenshots and

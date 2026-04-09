@@ -23,7 +23,7 @@ the case study (`../../SEGMENT_LIMITS_CASE_STUDY.md`).
 
 - Phase 3 was a single Playwright MCP step; it is now three sub-phases
   (3a: batch capture, 3b: visual analysis with rescan loop, 3c: spot-check)
-- Screenshots are captured by `visual-review-screenshots.py` using native ArcGIS
+- Screenshots are captured by `Scripts/visual-review-screenshots.py` using native ArcGIS
   `MapView.takeScreenshot()`, not Playwright MCP
 - Visual analysis agents read pre-captured screenshots from disk instead of
   driving a browser

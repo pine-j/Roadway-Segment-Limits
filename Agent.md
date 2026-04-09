@@ -32,7 +32,7 @@
   2. Generate visual-review batch prompts with
      [Scripts/generate_visual_review_prompts.py](Scripts/generate_visual_review_prompts.py).
   3. Capture screenshot pairs plus per-endpoint road-query JSON with
-     [visual-review-screenshots.py](visual-review-screenshots.py).
+     [Scripts/visual-review-screenshots.py](Scripts/visual-review-screenshots.py).
   4. Run independent Visual Review Agents against the screenshot and road-query
      evidence only.
   5. Merge heuristic and visual outputs with
@@ -86,15 +86,17 @@
 - Local serving modes:
   - Manual review or same-origin dashboard use:
     `python -m http.server 8080`, then open `/Web-App/`.
-  - Screenshot capture with `python visual-review-screenshots.py --local`:
+  - Screenshot capture with `python Scripts/visual-review-screenshots.py --local`:
     serve `Web-App/` itself at the server root, for example
     `cd Web-App && python -m http.server 8080`.
 - The programmatic browser hooks used by capture and review are:
   - `window.__waitForSegments()`
   - `window.__selectAndZoomSegment(segmentName)`
   - `window.__selectCorridorSegments(segmentName)`
+  - `window.__waitForTiles(timeout)`
+  - `window.__captureView(width, height)`
+  - `window.__navigateAndCapture(name, lon, lat, closeZoom, contextZoom)`
   - `window.__queryRoadsNearPoint(lon, lat, radiusMeters)`
-  - `window.__mapView.goTo(...)`
 
 ## Documentation
 
@@ -132,7 +134,7 @@
   heuristic/visual reconciliation
 - [Scripts/generate_review_dashboard.py](Scripts/generate_review_dashboard.py) -
   human review dashboard generator
-- [visual-review-screenshots.py](visual-review-screenshots.py) -
+- [Scripts/visual-review-screenshots.py](Scripts/visual-review-screenshots.py) -
   screenshot and road-query capture
 - [orchestrator.md](orchestrator.md) - orchestrator runtime prompt
 - [Docs/Segment-Limits-Heuristics-Logic.md](Docs/Segment-Limits-Heuristics-Logic.md) -

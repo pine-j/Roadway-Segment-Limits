@@ -51,7 +51,7 @@ independent passes:
 1. **Heuristic pass** — Python scripts analyze ArcGIS geometry, TxDOT vector
    tile labels, county boundaries, and roadway inventory data to identify
    endpoint limits with confidence scores.
-2. **Visual pass** — `visual-review-screenshots.py` captures map screenshots
+2. **Visual pass** — `Scripts/visual-review-screenshots.py` captures map screenshots
    plus road-query JSON, then sub-agents analyze that evidence independently
    and produce endpoint assessments with confidence buckets.
 3. **Reconciliation** — you merge both passes, categorize disagreements, produce
@@ -107,7 +107,7 @@ The heuristic script resolves these via route family fallback
    limits for each contiguous leg. Limits are identified independently at
    each piece's From and To endpoints.
 
-**Screenshot handling**: `visual-review-screenshots.py` uses
+**Screenshot handling**: `Scripts/visual-review-screenshots.py` uses
 `__selectCorridorSegments()` which tries exact match first, then selects all
 sub-segments in the family so the full corridor is highlighted in teal.
 
@@ -128,7 +128,7 @@ individual sub-segment names.
 
 ### 1. Screenshots must be real captures from the web app
 
-Phase 3a uses `visual-review-screenshots.py` (Playwright library + ArcGIS native
+Phase 3a uses `Scripts/visual-review-screenshots.py` (Playwright library + ArcGIS native
 `MapView.takeScreenshot()`) to capture all endpoint screenshots. If the script
 fails or produces blank/missing screenshots:
 
@@ -166,7 +166,7 @@ impossible, not just inadvisable.
 If any phase fails for any reason, stop and report. Do not generate synthetic
 or placeholder data to keep the pipeline moving. Every data file in this
 pipeline must come from either a Python script execution or real map
-screenshots captured by `visual-review-screenshots.py` — never from the LLM inventing
+screenshots captured by `Scripts/visual-review-screenshots.py` — never from the LLM inventing
 plausible values.
 
 ## Workflow
@@ -221,7 +221,7 @@ This creates `_temp/visual-review/batch-prompts/batch-01.md` through
 
 ### Phase 3a: Capture screenshots
 
-Run `visual-review-screenshots.py` to capture all endpoint screenshots AND road query
+Run `Scripts/visual-review-screenshots.py` to capture all endpoint screenshots AND road query
 data at once. This uses Playwright as a Python library (not MCP) and ArcGIS
 native `MapView.takeScreenshot()` for fast, reliable capture.
 
@@ -233,11 +233,11 @@ For each endpoint, the script produces three files:
 
 ```bash
 # Option A: Use GitHub Pages (deployed app)
-python visual-review-screenshots.py
+python Scripts/visual-review-screenshots.py
 
 # Option B: Use local server (if app.js changes haven't been deployed yet)
 cd Web-App && python -m http.server 8080 &
-cd .. && python visual-review-screenshots.py --local
+cd .. && python Scripts/visual-review-screenshots.py --local
 ```
 
 Key flags:
@@ -277,7 +277,7 @@ For each batch prompt file in `_temp/visual-review/batch-prompts/`:
    already exists, skip that batch.
 2. **Verify screenshot prerequisites**: confirm that all screenshot files
    referenced in the batch prompt exist on disk and are non-empty. If any are
-   missing, re-run `visual-review-screenshots.py` for that batch range before
+   missing, re-run `Scripts/visual-review-screenshots.py` for that batch range before
    dispatching the sub-agent.
 3. **Spawn a dedicated sub-agent** for this batch with:
    - The batch prompt file content as its task (contains endpoint table with
@@ -330,10 +330,10 @@ After each wave of sub-agents completes:
    - "county boundary just outside frame" → recapture with
      `--context-zoom 13`
 
-   Run `visual-review-screenshots.py` with the appropriate flags for the affected
+   Run `Scripts/visual-review-screenshots.py` with the appropriate flags for the affected
    batch range:
    ```bash
-   python visual-review-screenshots.py --start-batch N --end-batch N --overwrite \
+   python Scripts/visual-review-screenshots.py --start-batch N --end-batch N --overwrite \
      --close-zoom 19 --context-zoom 14
    ```
 
@@ -357,10 +357,10 @@ batch result files before starting the next wave. Do NOT skip this step.
 - **Blank/blue screenshots**: basemap tiles sometimes fail to render during
   capture. The batch prompt instructs analysis agents to flag these as
   low-confidence. If multiple endpoints in a batch have blank screenshots,
-  re-run `visual-review-screenshots.py --overwrite --start-batch N --end-batch N`
+  re-run `Scripts/visual-review-screenshots.py --overwrite --start-batch N --end-batch N`
   to recapture, then re-run the analysis.
 - **Missing teal highlight**: corridor-level segments (e.g., `SH 360`,
-  `FM 1189`) require selecting all sub-segments. The `visual-review-screenshots.py`
+  `FM 1189`) require selecting all sub-segments. The `Scripts/visual-review-screenshots.py`
   script handles this via `__selectCorridorSegments`. If a screenshot lacks
   the teal highlight, re-run the capture with `--local` flag (uses updated
   app.js with corridor support).
@@ -434,7 +434,7 @@ For each new `batch-NN-results.json`:
 
      ```bash
      # Example: re-capture batch 02 endpoint 10 at zoom 19 for close
-     python visual-review-screenshots.py --start-batch 2 --end-batch 2 \
+     python Scripts/visual-review-screenshots.py --start-batch 2 --end-batch 2 \
        --close-zoom 19 --context-zoom 14 --overwrite
      ```
 
@@ -595,6 +595,6 @@ Visual Review Agents should explicitly inspect:
 - `Scripts/generate_visual_review_prompts.py`
 - `Scripts/reconcile_results.py`
 - `Scripts/generate_review_dashboard.py`
-- `visual-review-screenshots.py` — Playwright library + ArcGIS native screenshot capture
+- `Scripts/visual-review-screenshots.py` — Playwright library + ArcGIS native screenshot capture
 - `Web-App/`
 - `Docs/Project-Plan/master-plan.md`

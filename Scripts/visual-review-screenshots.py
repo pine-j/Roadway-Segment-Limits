@@ -7,12 +7,12 @@ screenshots using ArcGIS MapView.takeScreenshot() - the GPU-native capture path.
 
 Depends on helper functions defined in Web-App/app.js:
     __waitForSegments, __waitForTiles, __captureView,
-    __selectCorridorSegments, __navigateAndCapture
+    __selectCorridorSegments, __navigateAndCapture, __queryRoadsNearPoint
 If you change or rename those functions in app.js, update REQUIRED_HELPERS
 below and any page.evaluate calls that reference them.
 
 Usage:
-    python visual-review-screenshots.py [options]
+    python Scripts/visual-review-screenshots.py [options]
 
 Options:
     --url URL           Web app URL (default: GitHub Pages)
@@ -38,10 +38,11 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_URL = "https://pine-j.github.io/Roadway-Segment-Limits/"
 LOCAL_URL = "http://localhost:8080"
-DEFAULT_MANIFEST = Path("_temp/visual-review/visual-review-manifest.json")
-DEFAULT_OUTDIR = Path("_temp/visual-review/screenshots")
+DEFAULT_MANIFEST = _REPO_ROOT / "_temp" / "visual-review" / "visual-review-manifest.json"
+DEFAULT_OUTDIR = _REPO_ROOT / "_temp" / "visual-review" / "screenshots"
 BATCH_SIZE = 15
 
 
@@ -61,12 +62,12 @@ def parse_args():
     return parser.parse_args()
 
 
-MIN_SCREENSHOT_KB = 10  # Blank/uniform PNGs compress below this
+MIN_SCREENSHOT_KB = 10
 
 
 def save_data_url(data_url: str, path: Path):
     """Decode a data:image/png;base64,... URL and write the PNG file."""
-    header, encoded = data_url.split(",", 1)
+    _header, encoded = data_url.split(",", 1)
     path.write_bytes(base64.b64decode(encoded))
 
 
@@ -76,6 +77,7 @@ def js_str(value: str) -> str:
 
 
 REQUIRED_HELPERS = [
+    "__waitForSegments",
     "__waitForTiles",
     "__captureView",
     "__selectCorridorSegments",
@@ -115,9 +117,6 @@ def main():
         print(f"Loading {url} ...")
         page.goto(url, wait_until="networkidle", timeout=60000)
 
-        seg_count = page.evaluate("window.__waitForSegments()")
-        print(f"App ready - {seg_count} segments loaded")
-
         missing = page.evaluate(
             "(" + json.dumps(REQUIRED_HELPERS) + ").filter(function(n) {"
             "  return typeof window[n] !== 'function';"
@@ -131,6 +130,9 @@ def main():
             sys.exit(1)
         print("Verified app helpers: all present")
 
+        seg_count = page.evaluate("window.__waitForSegments()")
+        print(f"App ready - {seg_count} segments loaded")
+
         captured = 0
         skipped = 0
         errors = 0
@@ -139,9 +141,9 @@ def main():
         for batch_idx in range(start - 1, end):
             batch_num = batch_idx + 1
             batch = batches[batch_idx]
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"BATCH {batch_num:02d} - {len(batch)} endpoints")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
 
             current_segment = None
 
@@ -167,9 +169,13 @@ def main():
                             f"window.__selectCorridorSegments({js_str(seg_name)})"
                         )
                         if not result:
-                            print(f"       WARNING: Segment '{seg_name}' not found - capturing without highlight")
+                            print(
+                                f"       WARNING: Segment '{seg_name}' not found - capturing without highlight"
+                            )
                         elif isinstance(result, int) and result > 1:
-                            print(f"       Corridor: selected {result} sub-segments for '{seg_name}'")
+                            print(
+                                f"       Corridor: selected {result} sub-segments for '{seg_name}'"
+                            )
                         current_segment = seg_name
 
                     data = page.evaluate(
@@ -180,9 +186,7 @@ def main():
                     save_data_url(data["context"], context_path)
 
                     roads_path = args.outdir / f"batch-{batch_num:02d}-ep-{ep_num:02d}-roads.json"
-                    roads_50 = page.evaluate(
-                        f"window.__queryRoadsNearPoint({lon}, {lat}, 50)"
-                    )
+                    roads_50 = page.evaluate(f"window.__queryRoadsNearPoint({lon}, {lat}, 50)")
                     roads_200 = page.evaluate(
                         f"window.__queryRoadsNearPoint({lon}, {lat}, 200)"
                     )
@@ -195,9 +199,7 @@ def main():
                         "roads_within_200m": roads_200,
                         "roads_within_500m": roads_500,
                     }
-                    roads_path.write_text(
-                        json.dumps(roads_data, indent=2), encoding="utf-8"
-                    )
+                    roads_path.write_text(json.dumps(roads_data, indent=2), encoding="utf-8")
 
                     close_kb = close_path.stat().st_size / 1024
                     context_kb = context_path.stat().st_size / 1024
@@ -208,12 +210,16 @@ def main():
                     if context_kb < MIN_SCREENSHOT_KB:
                         blank_warning += " BLANK-CONTEXT"
                     if blank_warning:
-                        print(f"       WARNING:{blank_warning} - tiles may have failed to render")
+                        print(
+                            f"       WARNING:{blank_warning} - tiles may have failed to render"
+                        )
 
                     n50 = len(roads_50)
                     n200 = len(roads_200)
                     n500 = len(roads_500)
-                    print(f"       close: {close_kb:.0f}KB  context: {context_kb:.0f}KB  roads: {n50}@50m {n200}@200m {n500}@500m")
+                    print(
+                        f"       close: {close_kb:.0f}KB  context: {context_kb:.0f}KB  roads: {n50}@50m {n200}@200m {n500}@500m"
+                    )
                     captured += 1
 
                 except Exception as exc:
@@ -223,13 +229,13 @@ def main():
         elapsed = time.time() - t_start
         browser.close()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"DONE in {elapsed:.1f}s")
     print(f"  Captured: {captured}")
     print(f"  Skipped:  {skipped}")
     print(f"  Errors:   {errors}")
     print(f"  Output:   {args.outdir.resolve()}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ Then open:
 http://localhost:8080/Web-App/
 ```
 
-For `python ../visual-review-screenshots.py --local`, serve `Web-App/` itself
+For `python ../Scripts/visual-review-screenshots.py --local`, serve `Web-App/` itself
 at the server root instead:
 
 ```powershell

@@ -2,7 +2,8 @@
 """Generate batched visual-review prompts from the manifest.
 
 Produces batch prompt files that instruct sub-agents to analyze
-pre-captured screenshots and road query data from visual-review-screenshots.py.
+pre-captured screenshots and road query data from
+Scripts/visual-review-screenshots.py.
 """
 
 from __future__ import annotations
