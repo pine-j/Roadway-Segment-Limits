@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -154,6 +155,26 @@ def normalize_offset_direction(value: object) -> str:
     return text.title()
 
 
+def parse_offset_limit(value: object) -> tuple[str, str] | None:
+    text = safe_text(value)
+    if not text:
+        return None
+
+    match = re.match(
+        r"^(north|south|east|west|ne|nw|se|sw|n|s|e|w)\s+of\s+(.+)$",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+
+    direction = normalize_offset_direction(match.group(1))
+    anchor = safe_text(match.group(2))
+    if not anchor:
+        return None
+    return direction, anchor
+
+
 def render_visual_base_limit(module, visual_row: dict[str, object]) -> str:
     limit_identification = safe_text(visual_row.get("limit_identification"))
     limit_alias = safe_text(visual_row.get("limit_alias"))
@@ -258,6 +279,13 @@ def load_visual_rows(module, batch_results_dir: Path) -> dict[EndpointKey, dict[
                 )
 
             entry = dict(entry)
+            inferred_offset = parse_offset_limit(entry.get("limit_identification"))
+            if inferred_offset and not parse_bool(entry.get("is_offset")):
+                direction, anchor = inferred_offset
+                entry["is_offset"] = True
+                entry["offset_direction"] = direction
+                if not safe_text(entry.get("offset_from")):
+                    entry["offset_from"] = anchor
             entry["_source_file"] = path.name
             entry["_visual_confidence_numeric"] = VISUAL_CONFIDENCE_SCORES[visual_confidence]
             entry["_visual_base_limit"] = render_visual_base_limit(module, entry)
@@ -290,7 +318,8 @@ def resolve_endpoint(
     visual_display_limit = safe_text(visual_row["_visual_display_limit"])
     visual_has_alias = bool(safe_text(visual_row.get("limit_alias")))
 
-    heuristic_has_offset = module.has_directional_description(heuristic_limit)
+    heuristic_offset = parse_offset_limit(heuristic_limit)
+    heuristic_has_offset = heuristic_offset is not None
     visual_is_offset = parse_bool(visual_row.get("is_offset"))
     heuristic_is_county = module.is_county_limit(heuristic_limit)
     visual_is_county = parse_bool(visual_row.get("county_boundary_at_endpoint"))
@@ -298,6 +327,16 @@ def resolve_endpoint(
     heuristic_is_route_only = bool(heuristic_limit) and module.is_route_limit(
         heuristic_limit
     ) and not module.has_named_road_with_route(heuristic_limit)
+    visual_offset_anchor = safe_text(visual_row.get("offset_from")) or visual_base_limit
+    visual_offset_direction = normalize_offset_direction(visual_row.get("offset_direction"))
+    offset_anchor_matches = (
+        bool(heuristic_offset)
+        and bool(visual_offset_anchor)
+        and limits_match(module, heuristic_offset[1], visual_offset_anchor)
+    )
+    offset_direction_matches = bool(heuristic_offset) and (
+        heuristic_offset[0] == visual_offset_direction
+    )
 
     resolution = ""
     category = ""
@@ -311,6 +350,14 @@ def resolve_endpoint(
         resolution = "visual_preferred" if visual_numeric >= 0.70 else "conflict"
         category = "county_not_detected"
         final_limit = visual_display_limit if resolution == "visual_preferred" else heuristic_limit
+    elif heuristic_has_offset and visual_is_offset and offset_anchor_matches:
+        if offset_direction_matches:
+            resolution = "confirmed"
+            final_limit = visual_display_limit
+        else:
+            resolution = "visual_preferred" if visual_numeric >= 0.70 else "conflict"
+            category = "offset_direction"
+            final_limit = visual_display_limit if resolution == "visual_preferred" else heuristic_limit
     elif heuristic_has_offset != visual_is_offset:
         resolution = "visual_preferred" if visual_numeric >= 0.70 else "conflict"
         category = "offset_extra" if heuristic_has_offset else "offset_missing"
