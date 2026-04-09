@@ -504,6 +504,16 @@ spot checks" to "deterministic first pass plus independent visual arbitration."
 The anti-bias constraint is architectural now: Visual Review Agents do not see
 the heuristic answers before producing their own result.
 
+A natural question: if the visual pass can override the heuristic, why keep the
+heuristic at all? Because the heuristic is the infrastructure that makes the
+visual pass possible. It computes endpoint coordinates from ArcGIS geometry,
+detects multi-piece gap segments, classifies corridors, and produces the
+manifest that drives screenshot capture and batch sizing. Visual agents cannot
+discover *where* to look — they can only confirm *what* is at a location the
+heuristic identified. When the visual pass "overrides" the heuristic, it is
+almost always picking a better name for the same intersection (a business route
+alias, a local road name), not correcting the location itself.
+
 ## What this phase taught me
 
 ### 1. Ground truth correction is higher-leverage than heuristic tuning

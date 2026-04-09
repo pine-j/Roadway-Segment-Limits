@@ -31,6 +31,48 @@ The key design principle: visual agents must NOT see heuristic answers.
 This is enforced architecturally through context isolation — each agent
 receives only the batch prompt, screenshot paths, and road-query JSON paths.
 
+## Why both passes are necessary
+
+The heuristic pass is not just a second opinion — it is the infrastructure
+that makes the visual pass possible. Without it, visual agents would not know
+where to look.
+
+**What the heuristic provides that visual agents cannot derive on their own:**
+
+1. **Endpoint coordinates** — the heuristic analyzes ArcGIS geometry to
+   determine where each segment starts and ends. Visual agents receive these
+   coordinates to navigate to. Without them, there is no screenshot to take.
+2. **Gap detection** — the heuristic discovers multi-piece segments (e.g.,
+   FM 2331-B has two pieces separated by a 200m+ gap, FM 1189 is a corridor
+   with multiple sub-segments). Visual agents do not discover gaps; they are
+   told which endpoints to assess for each piece.
+3. **Segment type classification** — Continuous vs. Gap, individual vs.
+   corridor. This drives how many endpoints to evaluate and how screenshots
+   are captured (corridor segments use `__selectCorridorSegments` to highlight
+   all sub-segments).
+4. **The manifest** — batch sizing, endpoint ordering, screenshot naming
+   conventions, and road-query coordinates are all derived from heuristic
+   output.
+
+**What the visual pass provides that the heuristic cannot derive on its own:**
+
+1. **Label verification** — confirms the crossing road actually visible on the
+   rendered map matches what the data says.
+2. **Alias and local name capture** — reads names shown on the map that do not
+   appear in the structured data (e.g., "Chisholm Trail Pkwy" for TL 38,
+   "Midway Rd" alongside US 377).
+3. **County boundary confirmation** — verifies the amber boundary line is
+   actually visible at the endpoint, not just nearby in the data.
+4. **Offset detection** — identifies endpoints that fall between intersections
+   rather than at a crossing, which the heuristic sometimes misclassifies.
+
+**Interpreting reconciliation results:** When the visual pass "overrides" the
+heuristic (resolution = `visual_preferred`), it is rarely because the
+heuristic identified the wrong location. More often, the visual agent picked a
+better name for the same intersection (e.g., a business route designation
+instead of the parent route) or caught a nuance the data could not express.
+The heuristic finds *where*; the visual pass confirms *what*.
+
 ## Segment types
 
 The input CSV contains two kinds of entries:
@@ -117,19 +159,20 @@ Anti-bias is enforced by architecture: visual agents literally cannot access
 
 ## Pipeline phases
 
-| Phase | What | How | Approx time |
-|-------|------|-----|-------------|
-| 0 | Pre-flight cleanup | Clear stale `_temp/` dirs | seconds |
-| 1 | Heuristic pass | `python Scripts/generate_visual_review_manifest.py` | ~2 min |
-| 2 | Generate prompts | `python Scripts/generate_visual_review_prompts.py` | seconds |
-| 3a | Capture screenshots | `python Scripts/visual-review-screenshots.py --local` | ~5 min |
-| 3b | Visual analysis | Sub-agents read screenshots + road data, produce JSON (waves of 2-3) | ~20-30 min |
-| 3c | Spot-check | Orchestrator verifies, reviews disagreements | ~10 min |
-| 4 | Reconcile | `python Scripts/reconcile_results.py` | seconds |
-| 5 | Report | Summary in terminal, notes, or commit/PR context | ~2 min |
-| 6 | Dashboard (optional) | `python Scripts/generate_review_dashboard.py` | seconds |
-| 7 | Human review (optional) | Process reviewer's exported JSON | on request |
-| 8 | Cleanup (optional) | Delete screenshots, batch prompts | on request |
+| Phase | What | How | Model | Reasoning | Approx time |
+|-------|------|-----|-------|-----------|-------------|
+| 0 | Pre-flight cleanup | Clear stale `_temp/` dirs | Orchestrator (GPT-5.4-Mini) | Low | seconds |
+| 1 | Heuristic pass | `python Scripts/generate_visual_review_manifest.py` | Orchestrator (GPT-5.4-Mini) | Low | ~2 min |
+| 2 | Generate prompts | `python Scripts/generate_visual_review_prompts.py` | Orchestrator (GPT-5.4-Mini) | Low | seconds |
+| 3a | Capture screenshots | `python Scripts/visual-review-screenshots.py --local` | Orchestrator (GPT-5.4-Mini) | Low | ~5 min |
+| 3b | Visual analysis | Sub-agents read screenshots + road data, produce JSON (waves of 2-3) | Sub-agent (GPT-5.4) | Medium → High | ~20-30 min |
+| 3c | Validation | `python Scripts/validate_visual_results.py` (deterministic) | Orchestrator (GPT-5.4-Mini) | Low | seconds |
+| 3c | Visual adjudication | Sub-agent reviews only disagreements + 10% sample | Sub-agent (GPT-5.4) | Medium | ~5 min |
+| 4 | Reconcile | `python Scripts/reconcile_results.py` | Orchestrator (GPT-5.4-Mini) | Low | seconds |
+| 5 | Report | Summary in terminal, notes, or commit/PR context | Sub-agent (GPT-5.4-Mini) | Medium | ~2 min |
+| 6 | Dashboard (optional) | `python Scripts/generate_review_dashboard.py` | Orchestrator (GPT-5.4-Mini) | Low | seconds |
+| 7 | Human review (optional) | Process reviewer's exported JSON | Sub-agent (GPT-5.4-Mini) | Medium | on request |
+| 8 | Cleanup (optional) | Delete screenshots, batch prompts | Orchestrator (GPT-5.4-Mini) | Low | on request |
 
 ## Phase 3 detail: screenshot capture + visual analysis
 

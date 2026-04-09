@@ -42,6 +42,61 @@ python Scripts/generate_visual_review_manifest.py --input _temp/visual-review-te
 
 If no input override is provided, the default CSV is used.
 
+## Model Routing
+
+The pipeline uses different models for different phases to optimize speed and
+cost. The orchestrator runs a fast, cheap model and spawns sub-agents with
+heavier models only when vision, reasoning, or text quality is required.
+
+### Orchestrator
+
+**Model**: GPT-5.4-Mini · **Reasoning**: Low
+
+The orchestrator runs script-execution phases directly — it only needs to run
+bash commands and check outputs. GPT-5.4-Mini is faster than GPT-5.2 for
+agent workflows while remaining cost-effective.
+
+### Per-phase routing
+
+| Phase | Task | Who | Model | Reasoning |
+|-------|------|-----|-------|-----------|
+| 0 | Pre-flight cleanup | Orchestrator | GPT-5.4-Mini | Low |
+| 1 | Heuristic dispatch | Orchestrator | GPT-5.4-Mini | Low |
+| 2 | Generate prompts | Orchestrator | GPT-5.4-Mini | Low |
+| 3a | Screenshot capture | Orchestrator | GPT-5.4-Mini | Low |
+| **3b** | **Visual analysis (default)** | **Sub-agent** | **GPT-5.4** | **Medium** |
+| **3b** | **Visual analysis (retry/hard)** | **Sub-agent** | **GPT-5.4** | **High** |
+| **3c** | **Deterministic validation** | **Orchestrator** | **GPT-5.4-Mini** | **Low** |
+| **3c** | **Visual adjudication** | **Sub-agent** | **GPT-5.4** | **Medium** |
+| 4 | Reconcile | Orchestrator | GPT-5.4-Mini | Low |
+| **5** | **Report** | **Sub-agent** | **GPT-5.4-Mini** | **Medium** |
+| 6 | Dashboard | Orchestrator | GPT-5.4-Mini | Low |
+| **7** | **Process human reviews** | **Sub-agent** | **GPT-5.4-Mini** | **Medium** |
+| 8 | Cleanup | Orchestrator | GPT-5.4-Mini | Low |
+
+### Why this split
+
+- **Orchestrator phases (0–2, 3a, 4, 6, 8)** run pre-existing Python scripts
+  and check outputs. GPT-5.4-Mini Low is the fastest option for agent
+  workflows — faster than GPT-5.2 per OpenAI docs.
+- **Phase 3b** is vision-critical: each sub-agent reads 30 images per batch,
+  must identify road labels, route shields, and county boundaries, then produce
+  structured JSON. GPT-5.4's vision encoder is the best available. **Adaptive
+  routing**: start at Medium reasoning; escalate to High only for retry batches
+  or batches with known-hard endpoints (dense interchanges, corridors). Vision
+  quality depends on the base model, not reasoning tokens — higher reasoning
+  mainly helps cross-image synthesis and correction discipline.
+- **Phase 3c** is split into two steps. First, the orchestrator runs
+  `Scripts/validate_visual_results.py` — a deterministic Python script that
+  handles schema validation, endpoint counts, screenshot existence checks, and
+  heuristic-vs-visual CSV comparison. It outputs `disagreements.json` with
+  only the disputed endpoints. Then a GPT-5.4 Medium sub-agent is spawned to
+  visually adjudicate only those disagreements (plus a 10% agreement sample).
+  This narrowed scope makes the sub-agent faster, cheaper, and more reliable.
+- **Phases 5 and 7** need decent text generation — pattern analysis,
+  summarization, structured override processing. GPT-5.4-Mini at Medium
+  handles this well without paying for full GPT-5.4.
+
 ## What this is
 
 You are the Orchestrator for a pipeline that identifies highway segment limits
@@ -259,6 +314,9 @@ affected batch range.
 
 ### Phase 3b: Dispatch Visual Analysis sub-agents
 
+> **Model**: GPT-5.4 · **Reasoning**: Medium (default) or High (retry/hard batches)
+> See [Model Routing](#model-routing) for adaptive escalation.
+
 Phase 3b is iterative: dispatch agents, collect results, recapture any bad
 screenshots, re-analyze — repeat until every endpoint has a clean result.
 
@@ -283,6 +341,9 @@ For each batch prompt file in `_temp/visual-review/batch-prompts/`:
    missing, re-run `Scripts/visual-review-screenshots.py` for that batch range before
    dispatching the sub-agent.
 3. **Spawn a dedicated sub-agent** for this batch with:
+   - **Model: GPT-5.4, Reasoning: Medium** (first attempt) or **High** (retry
+     batches, or batches with known-hard endpoints like dense interchanges or
+     corridors)
    - The batch prompt file content as its task (contains endpoint table with
      screenshot paths, road-query JSON paths, assessment criteria, and JSON
      output schema)
@@ -352,8 +413,55 @@ results. Bad screenshots are fixed at the source, not patched downstream.
 
 ### Phase 3c: Spot-check visual results
 
+> Phase 3c is split into two steps: a deterministic Python script (run by the
+> orchestrator) followed by a narrowed GPT-5.4 Medium sub-agent for visual
+> adjudication only. See [Model Routing](#model-routing).
+
 After each wave of visual analysis sub-agents completes, spot-check the new
 batch result files before starting the next wave. Do NOT skip this step.
+
+#### Step 1: Deterministic validation (orchestrator runs directly)
+
+Run:
+
+```bash
+python Scripts/validate_visual_results.py
+```
+
+This script performs all machine-checkable validation:
+- Schema validation (required fields, types, value constraints)
+- Endpoint count matches between batch prompts and results
+- Screenshot existence and size checks
+- Heuristic-vs-visual comparison using the same `limits_match()` logic as
+  `reconcile_results.py`
+- Gap/corridor-specific checks
+- Selects a 10% random sample of agreements for spot-checking
+
+Outputs (in `_temp/visual-review/`):
+- `validation-report.json` — errors, warnings, stats
+- `disagreements.json` — only the disputed endpoints with both limits,
+  screenshot paths, and visual reasoning
+
+**If schema errors or endpoint count mismatches are found**, fix them before
+proceeding. Re-run affected batches if needed.
+
+#### Step 2: Visual adjudication (GPT-5.4 Medium sub-agent)
+
+> **Model**: GPT-5.4 · **Reasoning**: Medium
+
+Spawn a sub-agent with ONLY:
+- `disagreements.json` (disputed endpoints)
+- The `spot_check_sample` from `validation-report.json` (agreement sample)
+- Read access to the referenced screenshot files
+- `Docs/SEGMENT_LIMITS_PLAYBOOK.md` for decision rules
+- Write access to update batch result JSONs with corrections
+
+The sub-agent's narrowed scope: for each disagreement, open the close and
+context screenshots and determine which limit is correct. For each agreement
+in the spot-check sample, verify the identified limit is actually visible.
+
+This replaces the previous monolithic Phase 3c approach. The sub-agent sees
+only disputed endpoints, making it faster, cheaper, and more reliable.
 
 **Known failure modes to watch for** (discovered in earlier runs):
 
@@ -509,6 +617,11 @@ view with one row per segment.
 
 ### Phase 5: Report
 
+> **Model**: GPT-5.4-Mini · **Reasoning**: Medium (see [Model Routing](#model-routing))
+>
+> Spawn a sub-agent for reporting — needs decent text generation for pattern
+> analysis and summarization.
+
 Summarize for the user:
 
 - Total endpoints evaluated
@@ -543,6 +656,11 @@ Tell the user to open the dashboard in a browser, review cases, and export the
 notes JSON when finished.
 
 ### Phase 7: Process human review notes (optional, only on explicit request)
+
+> **Model**: GPT-5.4-Mini · **Reasoning**: Medium (see [Model Routing](#model-routing))
+>
+> Spawn a sub-agent for processing — needs structured text reasoning to apply
+> overrides and generate summary.
 
 When the user provides the exported reviewer JSON:
 
