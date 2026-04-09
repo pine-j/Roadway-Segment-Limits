@@ -235,9 +235,12 @@ For each endpoint, the script produces three files:
 # Option A: Use GitHub Pages (deployed app)
 python Scripts/visual-review-screenshots.py
 
-# Option B: Use local server (if app.js changes haven't been deployed yet)
-cd Web-App && python -m http.server 8080 &
-cd .. && python Scripts/visual-review-screenshots.py --local
+# Option B: Use a local server (if app.js changes haven't been deployed yet)
+# Terminal 1: start local server
+cd Web-App && python -m http.server 8080
+
+# Terminal 2: run capture from the project root
+python Scripts/visual-review-screenshots.py --local
 ```
 
 Key flags:

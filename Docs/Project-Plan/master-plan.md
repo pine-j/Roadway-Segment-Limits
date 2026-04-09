@@ -211,7 +211,9 @@ The orchestrator validates each batch result:
 ]
 ```
 
-Gap segments add: `"piece"`, `"piece_count"`, `"app_segment_names"`.
+Gap segments add: `"piece"` and `"piece_count"`. They may also include
+`"app_segment_names"` when the heuristic resolves a corridor via family
+expansion.
 
 ### batch-NN-results.json
 
@@ -238,7 +240,10 @@ Gap segments add: `"piece"`, `"piece_count"`, `"app_segment_names"`.
 ]
 ```
 
-Optional: `"needs_rescan": true` when screenshot is unusable.
+Optional fields (added by orchestrator during spot-check):
+- `"needs_rescan": true` - screenshot unusable, recapture needed
+- `"needs_investigation": true` - result needs orchestrator review
+- `"orchestrator_corrected": true` - orchestrator overrode the visual agent's answer
 
 ### final-segment-limits.csv
 

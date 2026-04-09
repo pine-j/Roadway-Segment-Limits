@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-"""Evaluate identify_segment_limits.py against Amy's review data.
+"""Evaluate identify_segment_limits.py against the reviewed segment CSV.
 
-Reports two accuracy metrics:
-  1. All-sides: every From/To endpoint across all 150 segments (300 sides)
-  2. Trusted-only: sides where MCP-Summary == "Correct" and Amy agrees with MCP
-
-Also categorizes mismatches by pattern.
+Scores heuristic outputs against all reviewed From/To sides in the input CSV,
+writes the predicted limits to `_temp/`, and categorizes mismatches by pattern.
 """
 
 from __future__ import annotations

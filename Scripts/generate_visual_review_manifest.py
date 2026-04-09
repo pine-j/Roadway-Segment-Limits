@@ -399,7 +399,12 @@ def write_outputs(
         "Lon",
         "Lat",
     ]
-    pd.DataFrame(heuristic_rows, columns=heuristic_columns).to_csv(heuristic_path, index=False)
+    heuristic_df = pd.DataFrame(heuristic_rows, columns=heuristic_columns)
+    if "Piece" in heuristic_df.columns:
+        heuristic_df["Piece"] = heuristic_df["Piece"].apply(
+            lambda value: str(int(value)) if pd.notna(value) else ""
+        )
+    heuristic_df.to_csv(heuristic_path, index=False)
     manifest_path.write_text(json.dumps(manifest_rows, indent=2), encoding="utf-8")
     return heuristic_path, manifest_path
 
