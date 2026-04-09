@@ -10,8 +10,8 @@ This is intentionally data-driven instead of browser-driven:
   - a second-source roadway lookup comes from TxDOT's Roadway Inventory layer
 
 Its primary purpose is to identify segment limits from ArcGIS and TxDOT data.
-It can optionally compare those identified limits against
-Segment-Limits/limts-FTW-Segments.csv as a secondary review step.
+It can optionally compare those identified limits against the project's review
+CSV as a secondary review step.
 
 When a comparison CSV is supplied, it writes a review CSV with:
   - Segment-Direction
@@ -55,9 +55,9 @@ from shapely.strtree import STRtree
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT_COMPARE_CSV = ROOT / "FTW-Segments-Limits-Amy.review.csv"
 DEFAULT_OUTPUT = ROOT / "segment-limits.auto.csv"
-DEFAULT_LABEL_TILE_ROOT = ROOT / "FTW-TxDOT-Labels"
+DEFAULT_LABEL_TILE_ROOT = ROOT / "Cache" / "FTW-TxDOT-Labels"
 DEFAULT_ROADWAY_INVENTORY_PATH = (
-    ROOT / "FTW-Roadway-Inventory" / "roadway-inventory.ftw.geojson"
+    ROOT / "Cache" / "FTW-Roadway-Inventory" / "roadway-inventory.ftw.geojson"
 )
 
 SEGMENT_QUERY_URL = (

@@ -2,7 +2,7 @@
 """Generate batched visual-review prompts from the manifest.
 
 Produces batch prompt files that instruct sub-agents to analyze
-pre-captured screenshots and road query data from batch-screenshots.py.
+pre-captured screenshots and road query data from visual-review-screenshots.py.
 """
 
 from __future__ import annotations
@@ -98,26 +98,27 @@ def render_prompt(batch_name: str, batch_entries: list[dict[str, object]]) -> st
     example_close = f"{batch_name}-ep-01-close.png"
     example_context = f"{batch_name}-ep-01-context.png"
     batch_label = batch_name.replace("-", " ").title()
-    return f"""# Visual Review {batch_label} — Screenshot Analysis
+    return f"""# Visual Review {batch_label} — Screenshot + Road Query Analysis
 
 You are performing INDEPENDENT visual verification of highway segment endpoints
 by analyzing pre-captured map screenshots.
 
-## CRITICAL: Visual-only assessment
+## CRITICAL: Independent assessment
 
 - Do NOT look at any heuristic results files (heuristic-results.csv, etc.)
 - Do NOT read any CSV or data files in `_temp/` other than the screenshot image
   files and road query JSON files listed in the endpoint table below
-- ONLY use what you can visually read from the map screenshots: rendered road
-  labels, route shield graphics, county boundary lines, and the segment highlight
+- ONLY use the evidence in the screenshots and the listed road query JSON:
+  rendered road labels, route shield graphics, county boundary lines, the
+  segment highlight, and the paired TxDOT road-query results
 - Do NOT fabricate observations — if a label is unreadable, say so
 
 Your assessment must come purely from visual map reading and road query data.
 
 ## Required reading
 
-Before processing any endpoints, read `SEGMENT_LIMITS_PLAYBOOK.md` in the
-project root. It defines the scenarios, priority rules, and decision logic
+Before processing any endpoints, read `Docs/SEGMENT_LIMITS_PLAYBOOK.md`.
+It defines the scenarios, priority rules, and decision logic
 for determining limits. Follow it exactly.
 
 ## How screenshots were captured

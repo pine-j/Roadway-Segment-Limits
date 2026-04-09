@@ -5,7 +5,7 @@
 > agents and human reviewers. This document covers the heuristic engine
 > internals; the playbook covers how limits should be identified in practice.
 
-This document explains how [Scripts/identify_segment_limits.py](Scripts/identify_segment_limits.py)
+This document explains how [Scripts/identify_segment_limits.py](../Scripts/identify_segment_limits.py)
 identifies `Limits From` and `Limits To` for FTW segments, what data sources it
 uses, how its heuristics choose between candidate endpoints, and how the
 heuristic outputs now feed the hybrid visual verification pipeline.
@@ -49,16 +49,16 @@ For each FTW segment row:
 9. Write CSV outputs for either:
    - direct heuristic review through `verify_limits()`, or
    - the hybrid visual workflow through
-     [Scripts/generate_visual_review_manifest.py](Scripts/generate_visual_review_manifest.py)
+     [Scripts/generate_visual_review_manifest.py](../Scripts/generate_visual_review_manifest.py)
 
 The top-level orchestration for heuristic inference happens in
-`verify_limits()` inside [Scripts/identify_segment_limits.py](Scripts/identify_segment_limits.py).
+`verify_limits()` inside [Scripts/identify_segment_limits.py](../Scripts/identify_segment_limits.py).
 Candidate gathering happens in `gather_candidates()`, and the endpoint decision
 happens in `select_limit()`.
 
 ## Current Heuristic Outputs
 
-When [Scripts/identify_segment_limits.py](Scripts/identify_segment_limits.py) is
+When [Scripts/identify_segment_limits.py](../Scripts/identify_segment_limits.py) is
 run directly, the main review CSV now includes:
 
 - `Auto Limits From`
@@ -85,18 +85,18 @@ output and are used by the visual verification pipeline.
 
 The heuristic engine now feeds a larger pipeline:
 
-- [Scripts/generate_visual_review_manifest.py](Scripts/generate_visual_review_manifest.py)
+- [Scripts/generate_visual_review_manifest.py](../Scripts/generate_visual_review_manifest.py)
   writes:
   - `_temp/visual-review/heuristic-results.csv`
   - `_temp/visual-review/visual-review-manifest.json`
-- [Scripts/generate_visual_review_prompts.py](Scripts/generate_visual_review_prompts.py)
+- [Scripts/generate_visual_review_prompts.py](../Scripts/generate_visual_review_prompts.py)
   turns the manifest into batched Visual Review Agent prompts
 - Visual Review Agents write `_temp/visual-review/batch-results/batch-NN-results.json`
-- [Scripts/reconcile_results.py](Scripts/reconcile_results.py) merges heuristic
+- [Scripts/reconcile_results.py](../Scripts/reconcile_results.py) merges heuristic
   and visual outputs into:
   - `_temp/visual-review/final-segment-limits.csv`
   - `_temp/visual-review/final-segment-limits-collapsed.csv`
-- [orchestrator.md](orchestrator.md) describes the full multi-agent workflow
+- [orchestrator.md](../orchestrator.md) describes the full multi-agent workflow
 
 This means the heuristic engine is now both:
 
@@ -244,8 +244,8 @@ For gap segments:
 
 That same convention is used downstream by:
 
-- [Scripts/generate_visual_review_manifest.py](Scripts/generate_visual_review_manifest.py)
-- [Scripts/reconcile_results.py](Scripts/reconcile_results.py)
+- [Scripts/generate_visual_review_manifest.py](../Scripts/generate_visual_review_manifest.py)
+- [Scripts/reconcile_results.py](../Scripts/reconcile_results.py)
 
 ### Piece indexing
 
@@ -592,17 +592,17 @@ Confidence is now used in three places:
 
 1. Candidate selection inside `select_limit()`
 2. Direct heuristic CSV outputs from
-   [Scripts/identify_segment_limits.py](Scripts/identify_segment_limits.py)
+   [Scripts/identify_segment_limits.py](../Scripts/identify_segment_limits.py)
 3. Downstream visual reconciliation
 
 Specifically:
 
 - the direct review CSV exposes `Confidence-From`, `Confidence-To`, and bucketed
   versions
-- [Scripts/generate_visual_review_manifest.py](Scripts/generate_visual_review_manifest.py)
+- [Scripts/generate_visual_review_manifest.py](../Scripts/generate_visual_review_manifest.py)
   exposes per-endpoint confidence and confidence buckets in
   `_temp/visual-review/heuristic-results.csv`
-- [Scripts/reconcile_results.py](Scripts/reconcile_results.py) combines
+- [Scripts/reconcile_results.py](../Scripts/reconcile_results.py) combines
   heuristic confidence with mapped visual confidence buckets when producing final
   outputs
 
@@ -660,12 +660,12 @@ not to blindly overwrite uncertain cases.
 
 ## Hybrid Visual Verification Integration
 
-The hybrid workflow adds a second, visual-only pass on top of the deterministic
-heuristic engine.
+The hybrid workflow adds a second independent review pass on top of the
+deterministic heuristic engine.
 
 ### Phase 1: Heuristic manifest generation
 
-[Scripts/generate_visual_review_manifest.py](Scripts/generate_visual_review_manifest.py)
+[Scripts/generate_visual_review_manifest.py](../Scripts/generate_visual_review_manifest.py)
 runs the heuristic engine and emits:
 
 - `heuristic-results.csv` with one row per endpoint
@@ -676,15 +676,16 @@ boundary.
 
 ### Phase 2: Visual batch prompts
 
-[Scripts/generate_visual_review_prompts.py](Scripts/generate_visual_review_prompts.py)
+[Scripts/generate_visual_review_prompts.py](../Scripts/generate_visual_review_prompts.py)
 turns the manifest into batch prompt files for independent Visual Review Agents.
 
-### Phase 3: Visual-only review
+### Phase 3: Independent screenshot review
 
-Visual Review Agents inspect only the rendered map:
+Visual Review Agents inspect only the evidence packaged into the batch prompt:
 
-- no heuristic files
-- no CSV or JSON inputs beyond the prompt content
+- pre-captured close and context screenshots
+- the per-endpoint road-query JSON referenced by the prompt
+- no heuristic files or heuristic answers
 - no roadway popups
 - no API or GeoJSON inspection
 
@@ -700,7 +701,7 @@ They produce structured batch JSON with:
 
 ### Phase 4: Reconciliation
 
-[Scripts/reconcile_results.py](Scripts/reconcile_results.py) merges heuristic and
+[Scripts/reconcile_results.py](../Scripts/reconcile_results.py) merges heuristic and
 visual outputs into:
 
 - endpoint-level final audit rows
@@ -723,8 +724,8 @@ The main remaining failure modes are:
 3. Parallel corridor complexity
 4. Sparse or inconsistent label coverage
 5. Inventory generalization
-6. True visual-only cases where the rendered map shows information the data
-   sources do not expose cleanly
+6. True screenshot-first cases where the rendered map exposes information the
+   structured data sources do not expose cleanly
 
 ## Design Principles
 
@@ -764,22 +765,22 @@ If you need a short explanation for teammates, use this:
 > The heuristic script finds each segment endpoint, gathers county, route,
 > label, and inventory candidates, and selects the most defensible endpoint
 > anchor using explicit heuristics and confidence scoring. Those heuristic
-> results then feed a separate visual-only verification pass, and the two are
-> reconciled into final outputs.
+> results then feed a separate screenshot-and-road-query review pass, and the
+> two are reconciled into final outputs.
 
 ## Related Files
 
 - Main heuristic engine:
-  [Scripts/identify_segment_limits.py](Scripts/identify_segment_limits.py)
+  [Scripts/identify_segment_limits.py](../Scripts/identify_segment_limits.py)
 - Manifest generator:
-  [Scripts/generate_visual_review_manifest.py](Scripts/generate_visual_review_manifest.py)
+  [Scripts/generate_visual_review_manifest.py](../Scripts/generate_visual_review_manifest.py)
 - Batch prompt generator:
-  [Scripts/generate_visual_review_prompts.py](Scripts/generate_visual_review_prompts.py)
+  [Scripts/generate_visual_review_prompts.py](../Scripts/generate_visual_review_prompts.py)
 - Reconciler:
-  [Scripts/reconcile_results.py](Scripts/reconcile_results.py)
+  [Scripts/reconcile_results.py](../Scripts/reconcile_results.py)
 - Orchestrator prompt:
-  [orchestrator.md](orchestrator.md)
+  [orchestrator.md](../orchestrator.md)
 - Review CSV:
-  [FTW-Segments-Limits-Amy.review.csv](FTW-Segments-Limits-Amy.review.csv)
+  [FTW-Segments-Limits-Amy.review.csv](../FTW-Segments-Limits-Amy.review.csv)
 - Web app used for visual QA:
-  [Web-App/README.md](Web-App/README.md)
+  [Web-App/README.md](../Web-App/README.md)

@@ -7,14 +7,14 @@ confirmation between phases — run them sequentially and report results at the
 end. Do not run Phases 6–8 unless the user explicitly asks.
 
 For full architecture, schemas, and design rationale, refer to
-`Project-Plan/master-plan.md`.
+`Docs/Project-Plan/master-plan.md`.
 
-**Do NOT read files in `Project-Plan/archive/`** — those are outdated
+**Do NOT read files in `Docs/Project-Plan/archive/`** — those are outdated
 design-phase documents that describe a different architecture (e.g.,
 Playwright MCP for screenshots). They exist only for case study reference.
-This file and `Project-Plan/master-plan.md` are the current sources of truth.
+This file and `Docs/Project-Plan/master-plan.md` are the current sources of truth.
 
-**Required reading for visual analysis**: `SEGMENT_LIMITS_PLAYBOOK.md`
+**Required reading for visual analysis**: `Docs/SEGMENT_LIMITS_PLAYBOOK.md`
 defines the scenarios, priority rules, and decision logic for determining
 limits. All visual analysis sub-agents must read it. If a reviewer updates
 the playbook, the next pipeline run automatically adopts the changes.
@@ -51,11 +51,11 @@ independent passes:
 1. **Heuristic pass** — Python scripts analyze ArcGIS geometry, TxDOT vector
    tile labels, county boundaries, and roadway inventory data to identify
    endpoint limits with confidence scores.
-2. **Visual pass** — `batch-screenshots.py` captures map screenshots, then
-   sub-agents analyze the screenshots independently and produce endpoint
-   assessments with confidence buckets.
+2. **Visual pass** — `visual-review-screenshots.py` captures map screenshots
+   plus road-query JSON, then sub-agents analyze that evidence independently
+   and produce endpoint assessments with confidence buckets.
 3. **Reconciliation** — you merge both passes, categorize disagreements, produce
-   final CSVs, and append persistent run learnings.
+   final CSVs, and report run learnings.
 
 ## Why two passes
 
@@ -67,8 +67,8 @@ The heuristic script is strong but not complete. Known failure modes include:
 - Missed county boundaries
 - Missed offset situations
 
-The visual pass reads the rendered map, which exposes clues the data-driven
-heuristic cannot reliably infer.
+The visual pass reads the rendered map together with the paired road-query
+evidence, which exposes clues the data-driven heuristic cannot reliably infer.
 
 ## Segment types and gap handling
 
@@ -107,7 +107,7 @@ The heuristic script resolves these via route family fallback
    limits for each contiguous leg. Limits are identified independently at
    each piece's From and To endpoints.
 
-**Screenshot handling**: `batch-screenshots.py` uses
+**Screenshot handling**: `visual-review-screenshots.py` uses
 `__selectCorridorSegments()` which tries exact match first, then selects all
 sub-segments in the family so the full corridor is highlighted in teal.
 
@@ -128,7 +128,7 @@ individual sub-segment names.
 
 ### 1. Screenshots must be real captures from the web app
 
-Phase 3a uses `batch-screenshots.py` (Playwright library + ArcGIS native
+Phase 3a uses `visual-review-screenshots.py` (Playwright library + ArcGIS native
 `MapView.takeScreenshot()`) to capture all endpoint screenshots. If the script
 fails or produces blank/missing screenshots:
 
@@ -166,7 +166,7 @@ impossible, not just inadvisable.
 If any phase fails for any reason, stop and report. Do not generate synthetic
 or placeholder data to keep the pipeline moving. Every data file in this
 pipeline must come from either a Python script execution or real map
-screenshots captured by `batch-screenshots.py` — never from the LLM inventing
+screenshots captured by `visual-review-screenshots.py` — never from the LLM inventing
 plausible values.
 
 ## Workflow
@@ -221,7 +221,7 @@ This creates `_temp/visual-review/batch-prompts/batch-01.md` through
 
 ### Phase 3a: Capture screenshots
 
-Run `batch-screenshots.py` to capture all endpoint screenshots AND road query
+Run `visual-review-screenshots.py` to capture all endpoint screenshots AND road query
 data at once. This uses Playwright as a Python library (not MCP) and ArcGIS
 native `MapView.takeScreenshot()` for fast, reliable capture.
 
@@ -233,11 +233,11 @@ For each endpoint, the script produces three files:
 
 ```bash
 # Option A: Use GitHub Pages (deployed app)
-python batch-screenshots.py
+python visual-review-screenshots.py
 
 # Option B: Use local server (if app.js changes haven't been deployed yet)
 cd Web-App && python -m http.server 8080 &
-cd .. && python batch-screenshots.py --local
+cd .. && python visual-review-screenshots.py --local
 ```
 
 Key flags:
@@ -277,19 +277,21 @@ For each batch prompt file in `_temp/visual-review/batch-prompts/`:
    already exists, skip that batch.
 2. **Verify screenshot prerequisites**: confirm that all screenshot files
    referenced in the batch prompt exist on disk and are non-empty. If any are
-   missing, re-run `batch-screenshots.py` for that batch range before
+   missing, re-run `visual-review-screenshots.py` for that batch range before
    dispatching the sub-agent.
 3. **Spawn a dedicated sub-agent** for this batch with:
    - The batch prompt file content as its task (contains endpoint table with
-     screenshot file paths, assessment criteria, and JSON output schema)
+     screenshot paths, road-query JSON paths, assessment criteria, and JSON
+     output schema)
    - Read tool access (to view the screenshot image files)
    - Write tool access (to write the results JSON)
-   - **Nothing else** — no heuristic files, no CSVs, no data files
+   - **Nothing else** — no heuristic files and no unrelated CSV/JSON data
 4. Each sub-agent will:
    - For each endpoint: read the close screenshot, then the context screenshot,
-     assess, and move to the next endpoint. Do NOT pre-load all screenshots.
+     then read the paired `roads.json`, assess, and move to the next endpoint.
+     Do NOT pre-load all screenshots.
    - Assess each endpoint based on visible road labels, route shields, county
-     boundaries, and segment highlight position
+     boundaries, segment highlight position, and the road-query evidence
    - If a screenshot is unusable (blank, no segment highlight, labels
      unreadable), the agent must still write a result entry but set
      `"needs_rescan": true` and `visual_confidence: "low"` with reasoning
@@ -328,10 +330,10 @@ After each wave of sub-agents completes:
    - "county boundary just outside frame" → recapture with
      `--context-zoom 13`
 
-   Run `batch-screenshots.py` with the appropriate flags for the affected
+   Run `visual-review-screenshots.py` with the appropriate flags for the affected
    batch range:
    ```bash
-   python batch-screenshots.py --start-batch N --end-batch N --overwrite \
+   python visual-review-screenshots.py --start-batch N --end-batch N --overwrite \
      --close-zoom 19 --context-zoom 14
    ```
 
@@ -355,10 +357,10 @@ batch result files before starting the next wave. Do NOT skip this step.
 - **Blank/blue screenshots**: basemap tiles sometimes fail to render during
   capture. The batch prompt instructs analysis agents to flag these as
   low-confidence. If multiple endpoints in a batch have blank screenshots,
-  re-run `batch-screenshots.py --overwrite --start-batch N --end-batch N`
+  re-run `visual-review-screenshots.py --overwrite --start-batch N --end-batch N`
   to recapture, then re-run the analysis.
 - **Missing teal highlight**: corridor-level segments (e.g., `SH 360`,
-  `FM 1189`) require selecting all sub-segments. The `batch-screenshots.py`
+  `FM 1189`) require selecting all sub-segments. The `visual-review-screenshots.py`
   script handles this via `__selectCorridorSegments`. If a screenshot lacks
   the teal highlight, re-run the capture with `--local` flag (uses updated
   app.js with corridor support).
@@ -432,7 +434,7 @@ For each new `batch-NN-results.json`:
 
      ```bash
      # Example: re-capture batch 02 endpoint 10 at zoom 19 for close
-     python batch-screenshots.py --start-batch 2 --end-batch 2 \
+     python visual-review-screenshots.py --start-batch 2 --end-batch 2 \
        --close-zoom 19 --context-zoom 14 --overwrite
      ```
 
@@ -502,7 +504,7 @@ Outputs:
 The endpoint-level CSV is the audit table. The collapsed CSV is the delivery
 view with one row per segment.
 
-### Phase 5: Report and append to verification log
+### Phase 5: Report
 
 Summarize for the user:
 
@@ -512,17 +514,15 @@ Summarize for the user:
 - Visual preferred
 - Conflict
 - Visual only
-
-Then append a new timestamped `## Run:` section to `verification-log.md` with:
-
-- Summary counts
 - Disagreements where visual overrode heuristic
 - Conflict table for unresolved human-review cases
 - Pattern analysis that groups recurring disagreement themes and suggests
   concrete heuristic improvements
 - Traceability: input CSV, batch results path, and current git commit hash
 
-This file is never deleted.
+If persistent notes are needed for a handoff, write them to a dedicated file as
+part of that task. The current repo does not keep a committed
+`verification-log.md`.
 
 ### Phase 6: Generate review dashboard (optional)
 
@@ -552,8 +552,8 @@ When the user provides the exported reviewer JSON:
    user to fill it in before generating adjudicated output
 5. Produce `_temp/visual-review/human-reviewed-segment-limits.csv`
 6. Produce `_temp/visual-review/human-reviewed-segment-limits-collapsed.csv`
-7. Append a Human Review section to `verification-log.md` summarizing the
-   overrides and rationale
+7. Summarize the overrides and rationale in the response or in a dedicated
+   handoff note if the user requested one
 
 This phase runs only when the user explicitly asks for adjudicated output.
 Phase 4 outputs remain the default authoritative deliverables.
@@ -576,8 +576,6 @@ After reporting, clean up only when appropriate.
   - `_temp/visual-review/final-segment-limits.csv`
   - `_temp/visual-review/final-segment-limits-collapsed.csv`
 
-Never delete `verification-log.md`.
-
 ## Visual Review focus points
 
 Visual Review Agents should explicitly inspect:
@@ -597,7 +595,6 @@ Visual Review Agents should explicitly inspect:
 - `Scripts/generate_visual_review_prompts.py`
 - `Scripts/reconcile_results.py`
 - `Scripts/generate_review_dashboard.py`
-- `batch-screenshots.py` — Playwright library + ArcGIS native screenshot capture
-- `verification-log.md`
+- `visual-review-screenshots.py` — Playwright library + ArcGIS native screenshot capture
 - `Web-App/`
-- `Project-Plan/master-plan.md`
+- `Docs/Project-Plan/master-plan.md`

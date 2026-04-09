@@ -324,7 +324,7 @@ cases where the data sources disagree, the crossing angle is ambiguous, or the
 nearest road label is far from the endpoint.
 
 The full confidence scoring details are documented in
-[`SEGMENT_LIMITS_LOGIC.md`](SEGMENT_LIMITS_LOGIC.md#confidence-model).
+[`Segment-Limits-Heuristics-Logic.md`](Segment-Limits-Heuristics-Logic.md#confidence-model).
 
 ## What this project taught me
 
@@ -443,6 +443,10 @@ Alongside the CSV corrections, I added output formatting rules to `abbreviate_ou
 
 The jump from 52% to 80% came primarily from correcting Amy's ground truth to match what the basemap actually shows, not from heuristic improvements. This reinforced a key lesson: ground truth quality matters more than model sophistication.
 
+Those trusted-subset metrics are historical to this phase of the project. The
+current `Scripts/trusted_review_eval.py` in the repo has since been simplified
+and now scores all reviewed sides uniformly.
+
 ### Iteration 9: Visual-only re-verification (2026-04-06)
 
 A critical lesson emerged when reviewing the first round of Codex MCP verification results. Codex had been clicking on TxDOT roadway lines to read popup data — the same service data the script already uses. For FM 1189, the TxDOT API returned `FM0004-KG` at 0.0m, but the basemap clearly shows "US Highway 281" at that location. Codex reported the script-favorable answer because it was reading the script's own data source rather than the visual map.
@@ -474,22 +478,26 @@ The project is no longer just a script plus ad hoc verification. It now has a
 formal two-pass pipeline:
 
 1. The heuristic pass runs
-   [`Scripts/identify_segment_limits.py`](Scripts/identify_segment_limits.py)
+   [`Scripts/identify_segment_limits.py`](../Scripts/identify_segment_limits.py)
    through
-   [`Scripts/generate_visual_review_manifest.py`](Scripts/generate_visual_review_manifest.py)
+   [`Scripts/generate_visual_review_manifest.py`](../Scripts/generate_visual_review_manifest.py)
    and emits endpoint-level heuristic rows with coordinates, heuristic labels,
    confidence scores, and gap-piece detail.
 2. The manifest is turned into batch prompts by
-   [`Scripts/generate_visual_review_prompts.py`](Scripts/generate_visual_review_prompts.py).
-3. Independent Visual Review Agents inspect only the rendered map and write
-   structured JSON results for each endpoint.
-4. [`Scripts/reconcile_results.py`](Scripts/reconcile_results.py) merges the
+   [`Scripts/generate_visual_review_prompts.py`](../Scripts/generate_visual_review_prompts.py).
+3. [`visual-review-screenshots.py`](../visual-review-screenshots.py) captures
+   close and context screenshots plus per-endpoint `roads.json` evidence for
+   the visual pass.
+4. Independent Visual Review Agents inspect the pre-captured screenshots and
+   road-query evidence, without seeing heuristic answers, and write structured
+   JSON results for each endpoint.
+5. [`Scripts/reconcile_results.py`](../Scripts/reconcile_results.py) merges the
    heuristic and visual passes into:
    - `_temp/visual-review/final-segment-limits.csv`
    - `_temp/visual-review/final-segment-limits-collapsed.csv`
-5. [orchestrator.md](orchestrator.md) defines the end-to-end workflow, including
-   resumability, verification logging, optional dashboard generation, and
-   optional human-reviewed adjudication.
+6. [orchestrator.md](../orchestrator.md) defines the end-to-end workflow,
+   including resumability, optional dashboard generation, and optional
+   human-reviewed adjudication.
 
 That matters because the project has shifted from "heuristic script with manual
 spot checks" to "deterministic first pass plus independent visual arbitration."

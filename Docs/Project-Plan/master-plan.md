@@ -1,11 +1,11 @@
 # FTW Segment Limits — Master Plan
 
-> **Runtime document**: `orchestrator.md` (project root) is the authoritative
+> **Runtime document**: `../../orchestrator.md` is the authoritative
 > execution reference. This plan provides architecture context, design
 > rationale, and schema definitions. When running the pipeline, follow
-> `orchestrator.md`. When planning changes, read this file first.
+> `../../orchestrator.md`. When planning changes, read this file first.
 >
-> **Archived plans**: `Project-Plan/archive/` contains the original
+> **Archived plans**: `archive/` contains the original
 > design-phase documents. Use them only for case study updates, not for
 > pipeline execution or modification.
 
@@ -21,15 +21,15 @@ or offset from a nearby marker.
 1. **Heuristic pass** — Python scripts analyze ArcGIS geometry, TxDOT vector
    tile labels, county boundaries, and roadway inventory data to identify
    endpoint limits with confidence scores.
-2. **Visual pass** — pre-captured map screenshots are analyzed by AI agents
-   independently (without seeing heuristic results) to produce endpoint
-   assessments with confidence buckets.
+2. **Visual pass** — pre-captured map screenshots and per-endpoint road-query
+   JSON are analyzed by AI agents independently (without seeing heuristic
+   results) to produce endpoint assessments with confidence buckets.
 3. **Reconciliation** — merges both passes, categorizes disagreements,
-   produces final CSVs, and appends persistent run learnings.
+   produces final CSVs, and reports the run outcome.
 
 The key design principle: visual agents must NOT see heuristic answers.
-This is enforced **architecturally through agent context isolation** — each
-agent receives only screenshot file paths and assessment instructions.
+This is enforced architecturally through context isolation — each agent
+receives only the batch prompt, screenshot paths, and road-query JSON paths.
 
 ## Segment types
 
@@ -61,7 +61,7 @@ gaps remain: reported as Gap with per-piece limits.
 |-------|------|---------|
 | **Orchestrator** | Coordinates all phases, reconciles, reports | Everything |
 | **Heuristic Agent** | Runs Python scripts | Scripts, ArcGIS data, input CSV |
-| **Visual Analysis Agents** (x N) | Analyze pre-captured screenshots | Screenshot files + batch prompt only |
+| **Visual Analysis Agents** (x N) | Analyze pre-captured screenshots and road-query evidence | Screenshot files + `roads.json` paths + batch prompt only |
 
 Anti-bias is enforced by architecture: visual agents literally cannot access
 `heuristic-results.csv` because it is not in their context.
@@ -86,7 +86,7 @@ Anti-bias is enforced by architecture: visual agents literally cannot access
               python Scripts/generate_visual_review_prompts.py
                      |
               Phase 3a: capture screenshots
-              python batch-screenshots.py
+              python visual-review-screenshots.py
                      |
               Phase 3b: dispatch visual analysis agents
               (waves of 2-3, with rescan loop)
@@ -110,7 +110,7 @@ Anti-bias is enforced by architecture: visual agents literally cannot access
   limits.csv            limits-collapsed.csv
   (endpoint-level)      (per-segment)
                      |
-              Phase 5: report + verification log
+              Phase 5: report
                      |
               Phases 6-8: optional (dashboard, human review, cleanup)
 ```
@@ -122,11 +122,11 @@ Anti-bias is enforced by architecture: visual agents literally cannot access
 | 0 | Pre-flight cleanup | Clear stale `_temp/` dirs | seconds |
 | 1 | Heuristic pass | `python Scripts/generate_visual_review_manifest.py` | ~2 min |
 | 2 | Generate prompts | `python Scripts/generate_visual_review_prompts.py` | seconds |
-| 3a | Capture screenshots | `python batch-screenshots.py --local` | ~5 min |
+| 3a | Capture screenshots | `python visual-review-screenshots.py --local` | ~5 min |
 | 3b | Visual analysis | Sub-agents read screenshots + road data, produce JSON (waves of 2-3) | ~20-30 min |
 | 3c | Spot-check | Orchestrator verifies, reviews disagreements | ~10 min |
 | 4 | Reconcile | `python Scripts/reconcile_results.py` | seconds |
-| 5 | Report | Summary + append to `verification-log.md` | ~2 min |
+| 5 | Report | Summary in terminal, notes, or commit/PR context | ~2 min |
 | 6 | Dashboard (optional) | `python Scripts/generate_review_dashboard.py` | seconds |
 | 7 | Human review (optional) | Process reviewer's exported JSON | on request |
 | 8 | Cleanup (optional) | Delete screenshots, batch prompts | on request |
@@ -137,7 +137,7 @@ Phase 3 is the most complex phase. It is split into three sub-phases.
 
 ### Phase 3a: Capture screenshots
 
-`batch-screenshots.py` uses Playwright as a Python library (not MCP) with
+`visual-review-screenshots.py` uses Playwright as a Python library (not MCP) with
 ArcGIS native `MapView.takeScreenshot()` for GPU-direct PNG capture.
 
 - Opens the web app once, iterates through all endpoints
@@ -152,8 +152,9 @@ The batch script verifies they exist at runtime and fails fast if stale.
 
 ### Phase 3b: Visual analysis with rescan loop
 
-Sub-agents receive batch prompt files that reference screenshot file paths.
-They read each screenshot pair using the Read tool and assess endpoints.
+Sub-agents receive batch prompt files that reference screenshot file paths and
+per-endpoint road-query JSON files. They read each screenshot pair, consult the
+paired road-query data, and assess endpoints.
 
 If a screenshot is unusable (blank, no highlight, unreadable labels), the
 agent sets `"needs_rescan": true` on that endpoint.
@@ -283,21 +284,20 @@ Confidence scoring (matches `reconcile_results.py`):
 
 | File | Purpose |
 |------|---------|
-| `orchestrator.md` | **Runtime execution document** — follow this to run the pipeline |
-| `batch-screenshots.py` | Screenshot capture (Playwright + ArcGIS native) |
+| `../../orchestrator.md` | **Runtime execution document** — follow this to run the pipeline |
+| `../../visual-review-screenshots.py` | Screenshot and road-query capture (Playwright + ArcGIS native) |
 | `Web-App/app.js` | Web app + automation API (`__selectCorridorSegments`, etc.) |
 | `Scripts/identify_segment_limits.py` | Heuristic analysis |
 | `Scripts/generate_visual_review_manifest.py` | Manifest + heuristic CSV generation |
 | `Scripts/generate_visual_review_prompts.py` | Batch prompt generation |
 | `Scripts/reconcile_results.py` | Heuristic + visual reconciliation |
 | `Scripts/generate_review_dashboard.py` | Human review dashboard |
-| `verification-log.md` | Persistent run history (never deleted) |
-| `SEGMENT_LIMITS_CASE_STUDY.md` | Project case study |
+| `../SEGMENT_LIMITS_CASE_STUDY.md` | Project case study |
 
 ## Web app automation API
 
 All helpers live in `Web-App/app.js` (single source of truth).
-`batch-screenshots.py` depends on these and verifies they exist at runtime.
+`visual-review-screenshots.py` depends on these and verifies they exist at runtime.
 
 | Function | Purpose |
 |----------|---------|

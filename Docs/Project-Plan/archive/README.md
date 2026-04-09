@@ -2,7 +2,7 @@
 
 These files are the **original design-phase plans** that guided initial
 implementation. They are preserved for historical reference and for updating
-the case study (`SEGMENT_LIMITS_CASE_STUDY.md`).
+the case study (`../../SEGMENT_LIMITS_CASE_STUDY.md`).
 
 ## When to read these files
 
@@ -12,10 +12,10 @@ the case study (`SEGMENT_LIMITS_CASE_STUDY.md`).
 
 ## When NOT to read these files
 
-- **Running the orchestration pipeline** — use `orchestrator.md` at the
+- **Running the orchestration pipeline** — use `../../../orchestrator.md` at the
   project root. It is the authoritative runtime document.
-- **Modifying scripts or workflow** — use `orchestrator.md` and the current
-  `Project-Plan/master-plan.md` (parent directory).
+- **Modifying scripts or workflow** — use `../../../orchestrator.md` and the
+  current `../master-plan.md`.
 - **Debugging pipeline issues** — these archived plans describe an older
   architecture (e.g., Playwright MCP for screenshots) that no longer applies.
 
@@ -23,7 +23,7 @@ the case study (`SEGMENT_LIMITS_CASE_STUDY.md`).
 
 - Phase 3 was a single Playwright MCP step; it is now three sub-phases
   (3a: batch capture, 3b: visual analysis with rescan loop, 3c: spot-check)
-- Screenshots are captured by `batch-screenshots.py` using native ArcGIS
+- Screenshots are captured by `visual-review-screenshots.py` using native ArcGIS
   `MapView.takeScreenshot()`, not Playwright MCP
 - Visual analysis agents read pre-captured screenshots from disk instead of
   driving a browser

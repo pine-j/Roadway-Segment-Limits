@@ -1,7 +1,7 @@
 ## Source
 
 This folder stores the Fort Worth roadway inventory subset used by
-`Segment-Limits/Scripts/identify_segment_limits.py`.
+`Scripts/identify_segment_limits.py`.
 
 Primary source service:
 
@@ -20,5 +20,5 @@ Notes:
 Refresh command:
 
 ```bash
-python Segment-Limits/Scripts/identify_segment_limits.py --download-roadway-inventory-subset --limit 1
+python Scripts/identify_segment_limits.py --download-roadway-inventory-subset --limit 1
 ```
