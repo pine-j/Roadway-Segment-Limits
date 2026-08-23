@@ -946,6 +946,16 @@ require([
     });
   }
 
+  function formatSegmentLength(value) {
+    if (typeof value !== "number" || Number.isNaN(value)) {
+      return "";
+    }
+
+    // Segment lengths run from 0.14 to 33.68 miles, so a flat 1 decimal is 28% off on the
+    // shortest one. Round at render only — the stored value is never modified.
+    return `${value.toFixed(value >= 10 ? 1 : 2)} mi`;
+  }
+
   function renderSegments() {
     const visibleSegments = getVisibleSegments();
 
@@ -963,6 +973,7 @@ require([
     elements.segmentList.innerHTML = visibleSegments
       .map((segment) => {
         const isSelected = state.selectedSegmentIds.has(segment.objectId);
+        const lengthLabel = formatSegmentLength(segment.lengthMiles);
 
         return `
           <label class="segment-row ${isSelected ? "is-selected" : ""}" data-segment-id="${segment.objectId}">
@@ -980,6 +991,7 @@ require([
                   : ""
               }
             </span>
+            ${lengthLabel ? `<span class="segment-length">${lengthLabel}</span>` : ""}
           </label>
         `;
       })
