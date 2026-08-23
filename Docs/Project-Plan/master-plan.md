@@ -121,7 +121,7 @@ Anti-bias is enforced by architecture: visual agents literally cannot access
                      |
           +----------+----------+
           |                     |
-  heuristic-results.csv   manifest.json
+  heuristic-results.csv   visual-review-manifest.json
   (PRIVATE)               (SHARED)
                      |
               Phase 2: generate prompts
@@ -186,7 +186,7 @@ ArcGIS native `MapView.takeScreenshot()` for GPU-direct PNG capture.
 - Opens the web app once, iterates through all endpoints
 - For corridors: `__selectCorridorSegments()` highlights all sub-segments
 - Two screenshots per endpoint: close (zoom 17) and context (zoom 15)
-- Validates screenshots aren't blank (>10KB minimum)
+- Warns when screenshots look blank or undersized (<10KB)
 - Supports `--start-batch`, `--end-batch`, `--overwrite`, `--close-zoom`,
   `--context-zoom`
 

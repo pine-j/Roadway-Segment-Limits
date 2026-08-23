@@ -1,5 +1,10 @@
 # Case Study: Automating Fort Worth Highway Segment Limits
 
+> Note: this document mixes historical project iterations with the current
+> repository state. Historical sections discuss earlier Playwright MCP-based
+> verification work. For the current runtime workflow, use `../orchestrator.md`,
+> `Project-Plan/master-plan.md`, and `../Agent.md`.
+
 This project is a good example of the kind of work I want to keep doing: taking a messy real-world mapping problem, improving the observability of the problem first, and then building a human-in-the-loop automation workflow that gets more reliable over time instead of becoming more brittle.
 
 ## The problem I was solving

@@ -13,7 +13,9 @@
   the current heuristics against the review sheet. The current evaluator treats
   all reviewed sides as trusted and writes mismatch CSVs under `_temp/`.
 - Prefer the local caches in `Cache/FTW-TxDOT-Labels/` and
-  `Cache/FTW-Roadway-Inventory/`. Only use `--download-label-tiles`,
+  `Cache/FTW-Roadway-Inventory/` when they are available. The roadway inventory
+  subset is committed; the label-tile cache is generated on demand and may be
+  absent in a fresh checkout. Only use `--download-label-tiles`,
   `--download-roadway-inventory-subset`, `--live-label-tiles`, or
   `--live-roadway-inventory` when refreshing caches or explicitly validating
   against live services.

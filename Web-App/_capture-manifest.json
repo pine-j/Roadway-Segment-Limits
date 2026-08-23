@@ -1,0 +1,1058 @@
+[
+  {
+    "segment": "IH 820 - D",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.2155594644416,
+    "lat": 32.8330142241534,
+    "direction": "N to S",
+    "route_family": "IH 820",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "IH 820 - D",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.2140953596342,
+    "lat": 32.7598366524612,
+    "direction": "N to S",
+    "route_family": "IH 820",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "US 287 - A",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.1473561150685,
+    "lat": 32.5974779217158,
+    "direction": "N to S",
+    "route_family": "US 287",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "US 287 - A",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.0869524515173,
+    "lat": 32.5247205605226,
+    "direction": "N to S",
+    "route_family": "US 287",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 730 - A",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.4909428273965,
+    "lat": 33.4337669808567,
+    "direction": "N to S",
+    "route_family": "FM 730",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 730 - A",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.586499805719,
+    "lat": 33.2347491647494,
+    "direction": "N to S",
+    "route_family": "FM 730",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "SH 199 - D",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.4185370640766,
+    "lat": 32.8089648058345,
+    "direction": "N to S",
+    "route_family": "SH 199",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "SH 199 - D",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.3376764986655,
+    "lat": 32.7418060567368,
+    "direction": "N to S",
+    "route_family": "SH 199",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 2331 - B",
+    "side": "From",
+    "type": "Gap",
+    "piece": 1,
+    "piece_count": 2,
+    "lon": -97.526067088148,
+    "lat": 32.44310014247161,
+    "direction": "N to S",
+    "route_family": "FM 2331",
+    "endpoint_hint": "start of piece 1 (this segment has a physical gap - 2 separate pieces)"
+  },
+  {
+    "segment": "FM 2331 - B",
+    "side": "To",
+    "type": "Gap",
+    "piece": 1,
+    "piece_count": 2,
+    "lon": -97.5488597610818,
+    "lat": 32.395873452602984,
+    "direction": "N to S",
+    "route_family": "FM 2331",
+    "endpoint_hint": "end of piece 1 (this segment has a physical gap - 2 separate pieces)"
+  },
+  {
+    "segment": "FM 2331 - B",
+    "side": "From",
+    "type": "Gap",
+    "piece": 2,
+    "piece_count": 2,
+    "lon": -97.5456240196392,
+    "lat": 32.38512275071233,
+    "direction": "N to S",
+    "route_family": "FM 2331",
+    "endpoint_hint": "start of piece 2 (this segment has a physical gap - 2 separate pieces)"
+  },
+  {
+    "segment": "FM 2331 - B",
+    "side": "To",
+    "type": "Gap",
+    "piece": 2,
+    "piece_count": 2,
+    "lon": -97.4982827236075,
+    "lat": 32.313975429272986,
+    "direction": "N to S",
+    "route_family": "FM 2331",
+    "endpoint_hint": "end of piece 2 (this segment has a physical gap - 2 separate pieces)"
+  },
+  {
+    "segment": "FM 1189",
+    "side": "From",
+    "type": "Gap",
+    "piece": 1,
+    "piece_count": 2,
+    "lon": -98.048097523074,
+    "lat": 32.5181151342694,
+    "direction": "W to E",
+    "route_family": "FM 1189",
+    "endpoint_hint": "start of piece 1 (this segment has a physical gap - 2 separate pieces)"
+  },
+  {
+    "segment": "FM 1189",
+    "side": "To",
+    "type": "Gap",
+    "piece": 1,
+    "piece_count": 2,
+    "lon": -98.16729434501421,
+    "lat": 32.3882818649284,
+    "direction": "W to E",
+    "route_family": "FM 1189",
+    "endpoint_hint": "end of piece 1 (this segment has a physical gap - 2 separate pieces)"
+  },
+  {
+    "segment": "FM 1189",
+    "side": "From",
+    "type": "Gap",
+    "piece": 2,
+    "piece_count": 2,
+    "lon": -97.9610013924815,
+    "lat": 32.7027237624457,
+    "direction": "W to E",
+    "route_family": "FM 1189",
+    "endpoint_hint": "start of piece 2 (this segment has a physical gap - 2 separate pieces)"
+  },
+  {
+    "segment": "FM 1189",
+    "side": "To",
+    "type": "Gap",
+    "piece": 2,
+    "piece_count": 2,
+    "lon": -98.0439195220251,
+    "lat": 32.51797900442332,
+    "direction": "W to E",
+    "route_family": "FM 1189",
+    "endpoint_hint": "end of piece 2 (this segment has a physical gap - 2 separate pieces)"
+  },
+  {
+    "segment": "IH 35W - D",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.3217705490166,
+    "lat": 32.7971598608177,
+    "direction": "N to S",
+    "route_family": "IH 35W",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "IH 35W - D",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.3214668170398,
+    "lat": 32.6496597861072,
+    "direction": "N to S",
+    "route_family": "IH 35W",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "IH 35W - A",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.2294502553412,
+    "lat": 32.421357653916,
+    "direction": "N to S",
+    "route_family": "IH 35W",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "IH 35W - A",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.1609498181448,
+    "lat": 32.2504264063439,
+    "direction": "N to S",
+    "route_family": "IH 35W",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "IH 35W - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.3190049286625,
+    "lat": 32.5531987880359,
+    "direction": "N to S",
+    "route_family": "IH 35W",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "IH 35W - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.2294502553412,
+    "lat": 32.421357653916,
+    "direction": "N to S",
+    "route_family": "IH 35W",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "IH 35W - C",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.3214668170398,
+    "lat": 32.6496597861072,
+    "direction": "N to S",
+    "route_family": "IH 35W",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "IH 35W - C",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.3190049286625,
+    "lat": 32.5531987880359,
+    "direction": "N to S",
+    "route_family": "IH 35W",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "SH 360",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.0983461487008,
+    "lat": 32.9122382491279,
+    "direction": "N to S",
+    "route_family": "SH 360",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "SH 360",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.0618571958777,
+    "lat": 32.6541424030755,
+    "direction": "N to S",
+    "route_family": "SH 360",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "SH 10",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.210010760584,
+    "lat": 32.8090135048844,
+    "direction": "W to E",
+    "route_family": "SH 10",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "SH 10",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.0750976182531,
+    "lat": 32.8371831960246,
+    "direction": "W to E",
+    "route_family": "SH 10",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 2264",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.5613643130436,
+    "lat": 33.1973842719474,
+    "direction": "N to S",
+    "route_family": "FM 2264",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 2264",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.4458581678028,
+    "lat": 33.0985354187134,
+    "direction": "N to S",
+    "route_family": "FM 2264",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "US 81/287 - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.4713556583561,
+    "lat": 33.1007918680048,
+    "direction": "N to S",
+    "route_family": "US 81/287",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "US 81/287 - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.4309689754553,
+    "lat": 32.9923206595745,
+    "direction": "N to S",
+    "route_family": "US 81/287",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "BU 287P - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.3620075783736,
+    "lat": 32.8338229969477,
+    "direction": "N to S",
+    "route_family": "BU 287P",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "BU 287P - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.3279639470565,
+    "lat": 32.7556125397495,
+    "direction": "N to S",
+    "route_family": "BU 287P",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "IH 20 - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.4365273090215,
+    "lat": 32.6838253025848,
+    "direction": "W to E",
+    "route_family": "IH 20",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "IH 20 - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.320627756867,
+    "lat": 32.6669675424007,
+    "direction": "W to E",
+    "route_family": "IH 20",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 917 - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.4228381412952,
+    "lat": 32.460939809215,
+    "direction": "W to E",
+    "route_family": "FM 917",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 917 - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.2663377341783,
+    "lat": 32.4647695375722,
+    "direction": "W to E",
+    "route_family": "FM 917",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 56 - C",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.8624855955791,
+    "lat": 32.3286341666838,
+    "direction": "N to S",
+    "route_family": "FM 56",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 56 - C",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.7555049933821,
+    "lat": 32.2346723934979,
+    "direction": "N to S",
+    "route_family": "FM 56",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "US 377 - D",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.5491303999341,
+    "lat": 32.6113278461315,
+    "direction": "N to S",
+    "route_family": "US 377",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "US 377 - D",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.609669357084,
+    "lat": 32.5439357168828,
+    "direction": "N to S",
+    "route_family": "US 377",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 731 - A",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.345755266147,
+    "lat": 32.666275922191,
+    "direction": "N to S",
+    "route_family": "FM 731",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 731 - A",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.363201930822,
+    "lat": 32.5539622012951,
+    "direction": "N to S",
+    "route_family": "FM 731",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "SH 183 - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.264089096745,
+    "lat": 32.8013280760987,
+    "direction": "W to E",
+    "route_family": "SH 183",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "SH 183 - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.210010750584,
+    "lat": 32.8090134948844,
+    "direction": "W to E",
+    "route_family": "SH 183",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "SH 183 - C",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.3873120726374,
+    "lat": 32.7828431992923,
+    "direction": "W to E",
+    "route_family": "SH 183",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "SH 183 - C",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.2713749251861,
+    "lat": 32.7948343895637,
+    "direction": "W to E",
+    "route_family": "SH 183",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "SH 183 - D",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.3873120726374,
+    "lat": 32.7828431992923,
+    "direction": "N to S",
+    "route_family": "SH 183",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "SH 183 - D",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.392037879636,
+    "lat": 32.6804273658616,
+    "direction": "N to S",
+    "route_family": "SH 183",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 51 - E",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.7706921148614,
+    "lat": 32.7014761804616,
+    "direction": "N to S",
+    "route_family": "FM 51",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 51 - E",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.7643511144016,
+    "lat": 32.5539669931426,
+    "direction": "N to S",
+    "route_family": "FM 51",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 51 - H",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.913678685653,
+    "lat": 32.2654132126399,
+    "direction": "N to S",
+    "route_family": "FM 51",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 51 - H",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.8830445321451,
+    "lat": 32.1816119681516,
+    "direction": "N to S",
+    "route_family": "FM 51",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "SH 121 - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.0744313633163,
+    "lat": 32.9229559521825,
+    "direction": "N to S",
+    "route_family": "SH 121",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "SH 121 - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.2054745404705,
+    "lat": 32.8259680682669,
+    "direction": "N to S",
+    "route_family": "SH 121",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "IH 30 - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.337686614781,
+    "lat": 32.7436742000872,
+    "direction": "W to E",
+    "route_family": "IH 30",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "IH 30 - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.2141258796397,
+    "lat": 32.7598013944532,
+    "direction": "W to E",
+    "route_family": "IH 30",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "IH 820 - A",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.4184912370668,
+    "lat": 32.8089924208417,
+    "direction": "N to S",
+    "route_family": "IH 820",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "IH 820 - A",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.4648597073321,
+    "lat": 32.6870375709674,
+    "direction": "N to S",
+    "route_family": "IH 820",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "SS 280",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.3279639470565,
+    "lat": 32.7556125397495,
+    "direction": "W to E",
+    "route_family": "SS 280",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "SS 280",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.3187613247538,
+    "lat": 32.7558331501886,
+    "direction": "W to E",
+    "route_family": "SS 280",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 730 - D",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.5509741620471,
+    "lat": 32.9021482474864,
+    "direction": "N to S",
+    "route_family": "FM 730",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 730 - D",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.7421813310888,
+    "lat": 32.7568533120365,
+    "direction": "N to S",
+    "route_family": "FM 730",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "SH 6 - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -98.3319174040649,
+    "lat": 32.0832972009015,
+    "direction": "W to E",
+    "route_family": "SH 6",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "SH 6 - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -98.0802133924925,
+    "lat": 32.029468921264,
+    "direction": "W to E",
+    "route_family": "SH 6",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 157 - A",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.0999596806866,
+    "lat": 32.8725887006065,
+    "direction": "N to S",
+    "route_family": "FM 157",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 157 - A",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.0973774879365,
+    "lat": 32.7389845565649,
+    "direction": "N to S",
+    "route_family": "FM 157",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 1810 - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.7941115874997,
+    "lat": 33.2929966192014,
+    "direction": "W to E",
+    "route_family": "FM 1810",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 1810 - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.6045544568535,
+    "lat": 33.244222778696,
+    "direction": "W to E",
+    "route_family": "FM 1810",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "SH 183 - A",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.1238292105817,
+    "lat": 32.8375933739907,
+    "direction": "W to E",
+    "route_family": "SH 183",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "SH 183 - A",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.0338658218278,
+    "lat": 32.8370322677812,
+    "direction": "W to E",
+    "route_family": "SH 183",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 2280",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.3002227020054,
+    "lat": 32.4529197038967,
+    "direction": "N to S",
+    "route_family": "FM 2280",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 2280",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.3411231979249,
+    "lat": 32.3785809981076,
+    "direction": "N to S",
+    "route_family": "FM 2280",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 4 - H",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.4714047545255,
+    "lat": 32.3765914702368,
+    "direction": "W to E",
+    "route_family": "FM 4",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 4 - H",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.3961026511767,
+    "lat": 32.3689835239748,
+    "direction": "W to E",
+    "route_family": "FM 4",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 4 - E",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -98.0439296380278,
+    "lat": 32.5179807654232,
+    "direction": "W to E",
+    "route_family": "FM 4",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 4 - E",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.7876210835728,
+    "lat": 32.4422134611915,
+    "direction": "W to E",
+    "route_family": "FM 4",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "US 287 - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.2157201445685,
+    "lat": 32.6689092892701,
+    "direction": "N to S",
+    "route_family": "US 287",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "US 287 - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.1473561150685,
+    "lat": 32.5974779217158,
+    "direction": "N to S",
+    "route_family": "US 287",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 219 - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -98.3344652086878,
+    "lat": 32.0831486207672,
+    "direction": "N to S",
+    "route_family": "FM 219",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 219 - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -98.1846271857254,
+    "lat": 31.9292716520574,
+    "direction": "N to S",
+    "route_family": "FM 219",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 2257",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.6199083110982,
+    "lat": 32.9306283097768,
+    "direction": "W to E",
+    "route_family": "FM 2257",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 2257",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.5435463949493,
+    "lat": 32.9794357322239,
+    "direction": "W to E",
+    "route_family": "FM 2257",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "US 380 - A",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.5705379040865,
+    "lat": 33.2407036915662,
+    "direction": "W to E",
+    "route_family": "US 380",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "US 380 - A",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.3907955312088,
+    "lat": 33.2459667675729,
+    "direction": "W to E",
+    "route_family": "US 380",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "US 380 - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.7691091328029,
+    "lat": 33.2232962294594,
+    "direction": "W to E",
+    "route_family": "US 380",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "US 380 - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.5705379040865,
+    "lat": 33.2407036915662,
+    "direction": "W to E",
+    "route_family": "US 380",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 4 - G",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.6825753371829,
+    "lat": 32.4401780152762,
+    "direction": "W to E",
+    "route_family": "FM 4",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 4 - G",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.4714047545255,
+    "lat": 32.3765914702368,
+    "direction": "W to E",
+    "route_family": "FM 4",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "SS 465",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.4122423042427,
+    "lat": 32.6892018736404,
+    "direction": "N to S",
+    "route_family": "SS 465",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "SS 465",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.4140695243096,
+    "lat": 32.6826859123377,
+    "direction": "N to S",
+    "route_family": "SS 465",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 1187 - A",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.5999136938252,
+    "lat": 32.7301000232054,
+    "direction": "N to S",
+    "route_family": "FM 1187",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 1187 - A",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.5264944788892,
+    "lat": 32.6218990960879,
+    "direction": "N to S",
+    "route_family": "FM 1187",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 730 - B",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.586499805719,
+    "lat": 33.2347491647494,
+    "direction": "N to S",
+    "route_family": "FM 730",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 730 - B",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.5574634846043,
+    "lat": 33.0785317100536,
+    "direction": "N to S",
+    "route_family": "FM 730",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "SH 171 - D",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.7796458708333,
+    "lat": 32.7135610103303,
+    "direction": "N to S",
+    "route_family": "SH 171",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "SH 171 - D",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.6658236839353,
+    "lat": 32.5571085829528,
+    "direction": "N to S",
+    "route_family": "SH 171",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "US 377 - C",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.8590691689652,
+    "lat": 32.4176360265402,
+    "direction": "W to E",
+    "route_family": "US 377",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "US 377 - C",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.6342800043543,
+    "lat": 32.5120967428503,
+    "direction": "W to E",
+    "route_family": "US 377",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "FM 407",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.4717277244009,
+    "lat": 33.100010377843,
+    "direction": "W to E",
+    "route_family": "FM 407",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "FM 407",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.3951738750347,
+    "lat": 33.09829179091,
+    "direction": "W to E",
+    "route_family": "FM 407",
+    "endpoint_hint": "end of the teal segment line"
+  },
+  {
+    "segment": "BS 114J",
+    "side": "From",
+    "type": "Continuous",
+    "lon": -97.4782152032529,
+    "lat": 33.0554498992616,
+    "direction": "W to E",
+    "route_family": "BS 114J",
+    "endpoint_hint": "start of the teal segment line"
+  },
+  {
+    "segment": "BS 114J",
+    "side": "To",
+    "type": "Continuous",
+    "lon": -97.4727131118836,
+    "lat": 33.0556747295463,
+    "direction": "W to E",
+    "route_family": "BS 114J",
+    "endpoint_hint": "end of the teal segment line"
+  }
+]

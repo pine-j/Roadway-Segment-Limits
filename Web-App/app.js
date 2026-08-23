@@ -87,6 +87,7 @@ require([
       "County",
       "HSYS",
       "Segment_Length_Mi",
+      "Segment_Limits",
     ],
     popupEnabled: false,
     renderer: {
@@ -871,6 +872,7 @@ require([
         segment.highway,
         segment.county,
         segment.hsys,
+        segment.limits,
       ]
         .filter(Boolean)
         .join(" ")
@@ -970,7 +972,14 @@ require([
               data-toggle-id="${segment.objectId}"
               ${isSelected ? "checked" : ""}
             />
-            <span class="segment-name">${escapeHtml(segment.label)}</span>
+            <span class="segment-text">
+              <span class="segment-name">${escapeHtml(segment.label)}</span>
+              ${
+                segment.limits
+                  ? `<span class="segment-limits">${escapeHtml(segment.limits)}</span>`
+                  : ""
+              }
+            </span>
           </label>
         `;
       })
@@ -1014,6 +1023,7 @@ require([
       "County",
       "HSYS",
       "Segment_Length_Mi",
+      "Segment_Limits",
     ];
 
     const result = await segmentsLayer.queryFeatures(query);
@@ -1450,6 +1460,7 @@ require([
       "County",
       "HSYS",
       "Segment_Length_Mi",
+      "Segment_Limits",
     ];
     query.orderByFields = ["Readable_SegID ASC"];
 
@@ -1464,6 +1475,7 @@ require([
         county: feature.attributes.County || "",
         hsys: feature.attributes.HSYS || "Unknown",
         lengthMiles: feature.attributes.Segment_Length_Mi,
+        limits: feature.attributes.Segment_Limits || "",
       }))
       .sort(sortByLabel);
 

@@ -7,6 +7,10 @@ This is a standalone static ArcGIS JavaScript app that combines:
 - A paired `TxDOT_Roadways` feature layer used for roadway-name click queries
   and screenshot-capture road lookups
 
+Hosted app:
+
+- `https://pine-j.github.io/Roadway-Segment-Limits/`
+
 ## Run locally
 
 For manual review or same-origin dashboard testing, serve the repository root:
@@ -20,6 +24,9 @@ Then open:
 ```text
 http://localhost:8080/Web-App/
 ```
+
+This is the mode to use when the review dashboard needs same-origin access to
+the map iframe.
 
 For `python ../Scripts/visual-review-screenshots.py --local`, serve `Web-App/` itself
 at the server root instead:
