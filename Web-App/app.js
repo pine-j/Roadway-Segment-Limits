@@ -127,15 +127,16 @@ require([
 
   const csjLayer = new FeatureLayer({
     url: CSJ_URL,
-    title: "FTW CSJs",
+    title: "All FTW CSJs",
+    visible: false,
     outFields: ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID", "Segment_Label"],
     popupEnabled: false,
     renderer: {
       type: "simple",
       symbol: {
         type: "simple-line",
-        color: [0, 90, 200, 220],
-        width: 2.5,
+        color: [92, 148, 226, 210],
+        width: 2,
         cap: "round",
         join: "round",
       },
@@ -203,6 +204,61 @@ require([
   window.__mapView = view;
 
   view.ui.add(new Home({ view }), "top-left");
+
+  const legendElement = document.createElement("div");
+  legendElement.className = "map-legend";
+  legendElement.setAttribute("role", "group");
+  legendElement.setAttribute("aria-label", "Map lines");
+  legendElement.innerHTML = `
+    <div class="map-legend-title">Map lines</div>
+    <div class="map-legend-selection" id="legend-selection">Nothing selected</div>
+    <table class="map-legend-table">
+      <thead>
+        <tr>
+          <td></td>
+          <th scope="col">Selected</th>
+          <th scope="col">All</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row"><span class="map-legend-swatch segment"></span>Segments</th>
+          <td><input type="checkbox" data-legend="selected-segments" aria-label="Show the selected segments" /></td>
+          <td><input type="checkbox" data-legend="all-segments" aria-label="Show all segments" /></td>
+        </tr>
+        <tr>
+          <th scope="row"><span class="map-legend-swatch csj"></span>CSJs</th>
+          <td><input type="checkbox" data-legend="selected-csjs" aria-label="Show the selected CSJs" /></td>
+          <td><input type="checkbox" data-legend="all-csjs" aria-label="Show all CSJs" /></td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+
+  const legendLayers = {
+    "selected-segments": selectedSegmentsLayer,
+    "all-segments": segmentsLayer,
+    "selected-csjs": selectedCsjLayer,
+    "all-csjs": csjLayer,
+  };
+
+  function syncLegendChecks() {
+    legendElement.querySelectorAll("[data-legend]").forEach((checkbox) => {
+      checkbox.checked = legendLayers[checkbox.dataset.legend].visible;
+    });
+  }
+
+  legendElement.querySelectorAll("[data-legend]").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      legendLayers[checkbox.dataset.legend].visible = checkbox.checked;
+    });
+  });
+
+  // The layer list can switch the same two layers, so the ticks follow them.
+  segmentsLayer.watch("visible", syncLegendChecks);
+  csjLayer.watch("visible", syncLegendChecks);
+  syncLegendChecks();
+  view.ui.add(legendElement, "bottom-left");
 
   const layerList = new LayerList({
     view,
@@ -1246,9 +1302,35 @@ require([
     });
   }
 
+  // Says what the selected lines are, so the red and blue lines can be matched to the list.
+  function updateLegend() {
+    const segments = state.segments.filter((segment) =>
+      state.selectedSegmentIds.has(segment.objectId),
+    );
+    const selectedCsj = getSelectedCsj();
+    const csjCount = segments.reduce((total, segment) => total + getSegmentCsjs(segment).length, 0);
+    const parts = [];
+
+    if (segments.length) {
+      parts.push(segments.length === 1 ? segments[0].label : `${segments.length} segments`);
+    }
+
+    if (selectedCsj) {
+      parts.push(`CSJ ${selectedCsj.dashed}`);
+    } else if (csjCount) {
+      parts.push(`${csjCount} CSJ${csjCount === 1 ? "" : "s"}`);
+    }
+
+    legendElement.querySelector("#legend-selection").textContent = parts.length
+      ? `Selected: ${parts.join(" \u00b7 ")}`
+      : "Nothing selected";
+    syncLegendChecks();
+  }
+
   function render() {
     renderCategories();
     renderSegments();
+    updateLegend();
   }
 
   async function querySegments(objectIds) {
@@ -1903,6 +1985,7 @@ require([
     await syncSelectedGraphics();
 
     await view.goTo(feature.geometry.extent.clone().expand(1.4), {
+      animate: false,
       padding: {
         top: 140,
         right: 120,

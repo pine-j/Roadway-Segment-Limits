@@ -3,7 +3,7 @@
 This is a standalone static ArcGIS JavaScript app that combines:
 
 - `FTW_Segmentation_Master`
-- `FTW_TMP_2026_Master` layer 0 (the 206 CSJ project lines, drawn in blue)
+- `FTW_TMP_2026_Master` layer 0 (the 206 CSJ project lines)
 - `TxDOT_Vector_Tile_Basemap`
 - A paired `TxDOT_Roadways` feature layer used for roadway-name click queries
   and screenshot-capture road lookups
@@ -60,8 +60,10 @@ python -m http.server 8080
   "Limits differ between TxDOT sources" button lists only those CSJs.
 - Click a CSJ line on the map to see the limits TxDOT's DCIS layer and Project Tracker each give
   for it, next to the limits of its segment. Both are read live from TxDOT.
-- The CSJs of the selected segments are redrawn over the red segment line, so the stretch each
-  CSJ covers shows inside the segment.
+- The map opens showing only what is selected: the segment in red and, over it, the CSJs of that
+  segment in blue (or just the chosen CSJ). The "Map lines" box at the bottom left names the
+  selection and has a tick box for each of the four sets of lines: the selected segments, all
+  segments, the selected CSJs and all CSJs. Untick one to look at the other alone.
 - Click a TxDOT roadway on the map to view the roadway name.
 - Click a county boundary line to view the county boundary popup.
 - The automation helpers used by capture tooling live in `app.js`, including
