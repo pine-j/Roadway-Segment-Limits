@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://js.arcgis.com/4.32/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./styles.css?v=2026-04-08-4" />
+    <link rel="stylesheet" href="./styles.css?v=2026-10-21-1" />
     <script src="https://js.arcgis.com/4.32/"></script>
   </head>
   <body>
@@ -42,7 +42,7 @@
             <input
               id="segment-search"
               type="search"
-              placeholder="Search segment, highway, or"
+              placeholder="Search segment, CSJ or limits"
               autocomplete="off"
             />
           </label>
@@ -51,6 +51,11 @@
             <button id="clear-selection" class="ghost-button" type="button">Clear</button>
             <button id="zoom-selected" class="primary-button" type="button">Zoom selected</button>
           </div>
+
+          <button id="differ-filter" class="chip-button" type="button" aria-pressed="false" disabled>
+            <span>Limits differ between TxDOT sources</span>
+            <span class="count-pill" id="differ-count">...</span>
+          </button>
         </div>
 
         <div class="summary-strip">
@@ -82,6 +87,6 @@
       </main>
     </div>
 
-    <script src="./app.js?v=2026-04-08-14"></script>
+    <script src="./app.js?v=2026-10-21-1"></script>
   </body>
 </html>

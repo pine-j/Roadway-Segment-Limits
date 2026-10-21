@@ -61,6 +61,12 @@ require([
     searchTerm: "",
     selectedSegmentIds: new Set(),
     segments: [],
+    csjs: [],
+    csjsBySegment: new globalThis.Map(),
+    selectedCsj: null,
+    expandedSegmentIds: new Set(),
+    onlyDiffering: false,
+    limitsLoaded: false,
   };
 
   const elements = {
@@ -71,6 +77,8 @@ require([
     selectedCount: document.getElementById("selected-count"),
     clearSelectionButton: document.getElementById("clear-selection"),
     zoomSelectedButton: document.getElementById("zoom-selected"),
+    differFilter: document.getElementById("differ-filter"),
+    differCount: document.getElementById("differ-count"),
   };
 
   let countyBoundaryLayer = null;
@@ -892,6 +900,82 @@ require([
     }
   }
 
+  function normalizeWording(value) {
+    return String(value ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  }
+
+  // "IH 30 to 28th Street", or "" when the record is missing or carries no limits.
+  function wordingOf(record) {
+    if (!record || (!record.from && !record.to)) {
+      return "";
+    }
+
+    return `${record.from || "?"} to ${record.to || "?"}`;
+  }
+
+  // What the row of a CSJ shows as its limits: DCIS first, the Project Tracker when DCIS has none.
+  function csjLimitsLabel(csj) {
+    const dcis = wordingOf(csj.dcis);
+
+    if (dcis) {
+      return dcis;
+    }
+
+    const tracker = wordingOf(csj.tracker);
+    return tracker ? `${tracker} (Tracker)` : "";
+  }
+
+  function segmentMatchesText(segment, normalizedSearch) {
+    const haystack = [
+      segment.label,
+      segment.segmentId,
+      segment.highway,
+      segment.county,
+      segment.hsys,
+      segment.limits,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return haystack.includes(normalizedSearch);
+  }
+
+  // A CSJ matches on its number (hyphens optional, four digits or more) or on either limits wording.
+  function csjMatchesSearch(csj, normalizedSearch) {
+    const digitsQuery = normalizedSearch.replace(/\D/g, "");
+
+    if (digitsQuery.length >= 4 && csj.digits.includes(digitsQuery)) {
+      return true;
+    }
+
+    return [csj.dashed, wordingOf(csj.dcis), wordingOf(csj.tracker)]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearch);
+  }
+
+  function getSegmentCsjs(segment) {
+    return state.csjsBySegment.get(segment.segmentId) ?? [];
+  }
+
+  // The CSJ selected from the pane or a link, while its segment is still selected.
+  function getSelectedCsj() {
+    const csj = state.selectedCsj
+      ? state.csjs.find((item) => item.digits === state.selectedCsj)
+      : null;
+    const segment = csj ? state.segments.find((item) => item.segmentId === csj.segmentId) : null;
+
+    if (!csj || !segment || !state.selectedSegmentIds.has(segment.objectId)) {
+      state.selectedCsj = null;
+      return null;
+    }
+
+    return csj;
+  }
+
   function getVisibleSegments() {
     const normalizedSearch = state.searchTerm.trim().toLowerCase();
 
@@ -903,23 +987,20 @@ require([
         return false;
       }
 
+      const csjs = getSegmentCsjs(segment);
+
+      if (state.onlyDiffering && !csjs.some((csj) => csj.differs)) {
+        return false;
+      }
+
       if (!normalizedSearch) {
         return true;
       }
 
-      const haystack = [
-        segment.label,
-        segment.segmentId,
-        segment.highway,
-        segment.county,
-        segment.hsys,
-        segment.limits,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(normalizedSearch);
+      return (
+        segmentMatchesText(segment, normalizedSearch) ||
+        csjs.some((csj) => csjMatchesSearch(csj, normalizedSearch))
+      );
     });
   }
 
@@ -1004,6 +1085,11 @@ require([
     elements.selectedCount.textContent = String(state.selectedSegmentIds.size);
     elements.clearSelectionButton.disabled = state.selectedSegmentIds.size === 0;
     elements.zoomSelectedButton.disabled = state.selectedSegmentIds.size === 0;
+    elements.differFilter.disabled = !state.limitsLoaded;
+    elements.differFilter.setAttribute("aria-pressed", String(state.onlyDiffering));
+    elements.differCount.textContent = state.limitsLoaded
+      ? String(state.csjs.filter((csj) => csj.differs).length)
+      : "...";
 
     if (!visibleSegments.length) {
       elements.segmentList.innerHTML =
@@ -1011,29 +1097,112 @@ require([
       return;
     }
 
+    const normalizedSearch = state.searchTerm.trim().toLowerCase();
+    const selectedCsj = getSelectedCsj();
+
     elements.segmentList.innerHTML = visibleSegments
       .map((segment) => {
         const isSelected = state.selectedSegmentIds.has(segment.objectId);
         const lengthLabel = formatSegmentLength(segment.lengthMiles);
+        const csjs = getSegmentCsjs(segment);
 
-        return `
-          <label class="segment-row ${isSelected ? "is-selected" : ""}" data-segment-id="${segment.objectId}">
-            <input
-              class="segment-toggle"
-              type="checkbox"
-              data-toggle-id="${segment.objectId}"
-              ${isSelected ? "checked" : ""}
-            />
-            <span class="segment-text">
-              <span class="segment-name">${escapeHtml(segment.label)}</span>
-              ${
-                segment.limits
-                  ? `<span class="segment-limits">${escapeHtml(segment.limits)}</span>`
+        // A segment opens by itself when only its CSJs match the search, or while the filter for
+        // differing limits is on. Then only the CSJs that matched are listed.
+        let shownCsjs = csjs;
+        let isAutoExpanded = false;
+
+        if (state.onlyDiffering) {
+          shownCsjs = csjs.filter((csj) => csj.differs);
+          isAutoExpanded = true;
+        } else if (normalizedSearch && !segmentMatchesText(segment, normalizedSearch)) {
+          shownCsjs = csjs.filter((csj) => csjMatchesSearch(csj, normalizedSearch));
+          isAutoExpanded = true;
+        }
+
+        const isExpanded = isAutoExpanded || state.expandedSegmentIds.has(segment.objectId);
+        const differingCount = csjs.filter((csj) => csj.differs).length;
+        const countLabel =
+          shownCsjs.length === csjs.length
+            ? `${csjs.length} CSJ${csjs.length === 1 ? "" : "s"}`
+            : `${shownCsjs.length} of ${csjs.length} CSJs`;
+
+        const csjToggle = csjs.length
+          ? `
+            <button
+              type="button"
+              class="csj-toggle"
+              data-csj-toggle="${segment.objectId}"
+              aria-expanded="${isExpanded}"
+              ${isAutoExpanded ? "disabled" : ""}
+            >
+              <span class="csj-toggle-arrow" aria-hidden="true">&#9656;</span>${countLabel}${
+                differingCount
+                  ? ` <span class="csj-differ-note">&middot; ${differingCount} differ</span>`
                   : ""
               }
-            </span>
-            ${lengthLabel ? `<span class="segment-length">${lengthLabel}</span>` : ""}
-          </label>
+            </button>
+          `
+          : "";
+
+        const csjList =
+          csjs.length && isExpanded
+            ? `
+            <ul class="csj-list">
+              ${shownCsjs
+                .map((csj) => {
+                  const limits = csjLimitsLabel(csj);
+                  const trackerWording = wordingOf(csj.tracker);
+                  const isMatch = normalizedSearch && csjMatchesSearch(csj, normalizedSearch);
+
+                  return `
+                    <li>
+                      <button
+                        type="button"
+                        class="csj-row ${selectedCsj?.digits === csj.digits ? "is-selected" : ""} ${
+                          isMatch ? "is-match" : ""
+                        }"
+                        data-csj="${csj.digits}"
+                      >
+                        <span class="csj-number">${escapeHtml(csj.dashed)}${
+                          csj.differs ? '<span class="csj-flag">Tracker differs</span>' : ""
+                        }</span>
+                        ${limits ? `<span class="csj-limits">${escapeHtml(limits)}</span>` : ""}
+                        ${
+                          csj.differs
+                            ? `<span class="csj-tracker">Tracker: ${escapeHtml(trackerWording)}</span>`
+                            : ""
+                        }
+                      </button>
+                    </li>
+                  `;
+                })
+                .join("")}
+            </ul>
+          `
+            : "";
+
+        return `
+          <div class="segment-group">
+            <label class="segment-row ${isSelected ? "is-selected" : ""}" data-segment-id="${segment.objectId}">
+              <input
+                class="segment-toggle"
+                type="checkbox"
+                data-toggle-id="${segment.objectId}"
+                ${isSelected ? "checked" : ""}
+              />
+              <span class="segment-text">
+                <span class="segment-name">${escapeHtml(segment.label)}</span>
+                ${
+                  segment.limits
+                    ? `<span class="segment-limits">${escapeHtml(segment.limits)}</span>`
+                    : ""
+                }
+              </span>
+              ${lengthLabel ? `<span class="segment-length">${lengthLabel}</span>` : ""}
+            </label>
+            ${csjToggle}
+            ${csjList}
+          </div>
         `;
       })
       .join("");
@@ -1041,6 +1210,8 @@ require([
     elements.segmentList.querySelectorAll("[data-toggle-id]").forEach((checkbox) => {
       checkbox.addEventListener("change", async () => {
         const objectId = Number(checkbox.dataset.toggleId);
+
+        state.selectedCsj = null;
 
         if (checkbox.checked) {
           state.selectedSegmentIds.add(objectId);
@@ -1051,6 +1222,26 @@ require([
         render();
         await syncSelectedGraphics();
         await zoomToSegments(Array.from(state.selectedSegmentIds));
+      });
+    });
+
+    elements.segmentList.querySelectorAll("[data-csj-toggle]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const objectId = Number(button.dataset.csjToggle);
+
+        if (state.expandedSegmentIds.has(objectId)) {
+          state.expandedSegmentIds.delete(objectId);
+        } else {
+          state.expandedSegmentIds.add(objectId);
+        }
+
+        renderSegments();
+      });
+    });
+
+    elements.segmentList.querySelectorAll("[data-csj]").forEach((button) => {
+      button.addEventListener("click", () => {
+        focusCsj(button.dataset.csj).catch((error) => console.error(error));
       });
     });
   }
@@ -1178,8 +1369,11 @@ require([
       return;
     }
 
+    const selectedCsj = getSelectedCsj();
     const query = csjLayer.createQuery();
-    query.where = `Segment_ID IN (${segmentIds.join(",")})`;
+    query.where = selectedCsj
+      ? `CSJ = '${selectedCsj.digits}'`
+      : `Segment_ID IN (${segmentIds.join(",")})`;
     query.returnGeometry = true;
     query.outFields = ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID", "Segment_Label"];
 
@@ -1575,9 +1769,12 @@ require([
     render();
   }
 
-  async function queryTxdotCsj(url, where, outFields) {
-    const params = new URLSearchParams({ where, outFields, returnGeometry: "false", f: "json" });
-    const response = await fetch(`${url}/query?${params}`);
+  async function queryTxdotRecords(url, where, outFields) {
+    const response = await fetch(`${url}/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ where, outFields, returnGeometry: "false", f: "json" }),
+    });
 
     if (!response.ok) {
       throw new Error(`${url} answered ${response.status}`);
@@ -1589,7 +1786,12 @@ require([
       throw new Error(json.error.message);
     }
 
-    return json.features?.[0]?.attributes ?? null;
+    return (json.features ?? []).map((feature) => feature.attributes);
+  }
+
+  async function queryTxdotCsj(url, where, outFields) {
+    const records = await queryTxdotRecords(url, where, outFields);
+    return records[0] ?? null;
   }
 
   function formatLimitsPair(record) {
@@ -1657,6 +1859,7 @@ require([
   }
 
   async function selectSegmentOnMap(segment) {
+    state.selectedCsj = null;
     state.selectedSegmentIds = new Set([segment.objectId]);
     state.searchTerm = segment.label;
     elements.searchInput.value = segment.label;
@@ -1664,34 +1867,42 @@ require([
     await syncSelectedGraphics();
   }
 
-  // ?csj=0014-16-289 (hyphens optional): selects the CSJ's segment, zooms to the CSJ and opens
-  // its popup. Returns false when no CSJ matches.
-  async function selectCsjFromUrl(requested) {
-    const digits = requested.replace(/\D/g, "");
+  // Selects one CSJ, from its row in the pane or from a ?csj= link: its segment is selected and
+  // opened in the list, the map zooms to the CSJ, and its popup opens. Returns false when no CSJ
+  // matches.
+  async function focusCsj(digits) {
+    const csj = state.csjs.find((item) => item.digits === digits);
 
-    if (digits.length !== 9) {
+    if (!csj) {
       return false;
     }
 
     const query = csjLayer.createQuery();
-    query.where = `CSJ = '${digits}'`;
+    query.where = `CSJ = '${csj.digits}'`;
     query.returnGeometry = true;
     query.outFields = ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID", "Segment_Label"];
 
     const result = await csjLayer.queryFeatures(query);
-    const csj = result.features[0];
+    const feature = result.features[0];
 
-    if (!csj?.geometry) {
+    if (!feature?.geometry) {
       return false;
     }
 
-    const segment = state.segments.find((item) => item.segmentId === csj.attributes.Segment_ID);
+    const segment = state.segments.find((item) => item.segmentId === csj.segmentId);
+
+    state.selectedCsj = csj.digits;
+    state.selectedSegmentIds = segment ? new Set([segment.objectId]) : new Set();
 
     if (segment) {
-      await selectSegmentOnMap(segment);
+      state.expandedSegmentIds.add(segment.objectId);
     }
 
-    await view.goTo(csj.geometry.extent.clone().expand(1.4), {
+    render();
+    elements.segmentList.querySelector(".csj-row.is-selected")?.scrollIntoView({ block: "nearest" });
+    await syncSelectedGraphics();
+
+    await view.goTo(feature.geometry.extent.clone().expand(1.4), {
       padding: {
         top: 140,
         right: 120,
@@ -1700,17 +1911,129 @@ require([
       },
     });
 
-    const path = csj.geometry.paths[0];
+    const path = feature.geometry.paths[0];
     const [x, y] = path[Math.floor(path.length / 2)];
 
-    await showCsjPopup(csj.attributes, {
+    await showCsjPopup(feature.attributes, {
       type: "point",
       x,
       y,
-      spatialReference: csj.geometry.spatialReference,
+      spatialReference: feature.geometry.spatialReference,
     });
 
     return true;
+  }
+
+  // ?csj=0014-16-289 (hyphens optional): the list narrows to that CSJ, then focusCsj does the rest.
+  async function selectCsjFromUrl(requested) {
+    const digits = requested.replace(/\D/g, "");
+    const csj = digits.length === 9 ? state.csjs.find((item) => item.digits === digits) : null;
+
+    if (!csj) {
+      return false;
+    }
+
+    state.searchTerm = csj.dashed;
+    elements.searchInput.value = csj.dashed;
+
+    return focusCsj(csj.digits);
+  }
+
+  async function loadCsjs() {
+    const query = csjLayer.createQuery();
+    query.where = "1=1";
+    query.returnGeometry = false;
+    query.outFields = ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID", "Segment_Label"];
+    query.orderByFields = ["CSJ_Dashed ASC"];
+
+    const result = await csjLayer.queryFeatures(query);
+
+    state.csjs = result.features.map((feature) => ({
+      objectId: feature.attributes.OBJECTID,
+      digits: String(feature.attributes.CSJ ?? "").replace(/\D/g, ""),
+      dashed: feature.attributes.CSJ_Dashed || "",
+      segmentId: feature.attributes.Segment_ID || "",
+      segmentLabel: feature.attributes.Segment_Label || "",
+      dcis: null,
+      tracker: null,
+      differs: false,
+    }));
+
+    state.csjsBySegment = new globalThis.Map();
+    state.csjs.forEach((csj) => {
+      const list = state.csjsBySegment.get(csj.segmentId) ?? [];
+      list.push(csj);
+      state.csjsBySegment.set(csj.segmentId, list);
+    });
+
+    render();
+
+    // The limits wording comes after the list is on screen; a CSJ row shows only its number until then.
+    loadCsjLimits().catch((error) => console.error(error));
+  }
+
+  // Reads what DCIS and the Project Tracker say for every CSJ in two requests, and marks the CSJs
+  // the two word differently. Case, spacing and punctuation do not count as a difference.
+  async function loadCsjLimits() {
+    const inList = state.csjs.map((csj) => `'${csj.digits}'`).join(",");
+    const [dcisResult, trackerResult] = await Promise.allSettled([
+      queryTxdotRecords(
+        TXDOT_DCIS_URL,
+        `CONTROL_SECT_JOB IN (${inList})`,
+        "CONTROL_SECT_JOB,LIMITS_FROM,LIMITS_TO",
+      ),
+      queryTxdotRecords(
+        TXDOT_TRACKER_URL,
+        `CONTROL_SECT_JOB IN (${inList})`,
+        "CONTROL_SECT_JOB,LIMITS_FROM,LIMITS_TO,LAST_PROJ_UPDATE_DT",
+      ),
+    ]);
+
+    const byCsj = (settled) =>
+      new globalThis.Map(
+        settled.status === "fulfilled"
+          ? settled.value.map((record) => [String(record.CONTROL_SECT_JOB).trim(), record])
+          : [],
+      );
+    const dcis = byCsj(dcisResult);
+    const tracker = byCsj(trackerResult);
+
+    // DCIS pads some control-section-job values with spaces, which IN does not match.
+    const missing = state.csjs.filter((csj) => !dcis.has(csj.digits));
+
+    if (dcisResult.status === "fulfilled" && missing.length) {
+      try {
+        const found = await queryTxdotRecords(
+          TXDOT_DCIS_URL,
+          missing.map((csj) => `CONTROL_SECT_JOB LIKE '%${csj.digits}%'`).join(" OR "),
+          "CONTROL_SECT_JOB,LIMITS_FROM,LIMITS_TO",
+        );
+        found.forEach((record) => dcis.set(String(record.CONTROL_SECT_JOB).trim(), record));
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    const toWording = (record) =>
+      record
+        ? {
+            from: String(record.LIMITS_FROM ?? "").trim(),
+            to: String(record.LIMITS_TO ?? "").trim(),
+            updated: record.LAST_PROJ_UPDATE_DT,
+          }
+        : null;
+
+    state.csjs.forEach((csj) => {
+      csj.dcis = toWording(dcis.get(csj.digits));
+      csj.tracker = toWording(tracker.get(csj.digits));
+      csj.differs =
+        Boolean(wordingOf(csj.dcis) && wordingOf(csj.tracker)) &&
+        (normalizeWording(csj.dcis.from) !== normalizeWording(csj.tracker.from) ||
+          normalizeWording(csj.dcis.to) !== normalizeWording(csj.tracker.to));
+    });
+
+    state.limitsLoaded = true;
+    renderSegments();
   }
 
   // Opens the app on one CSJ or one segment from the link: ?csj=0014-16-289, ?segment=IH%2035W%20-%20D
@@ -1749,7 +2072,13 @@ require([
     renderSegments();
   });
 
+  elements.differFilter.addEventListener("click", () => {
+    state.onlyDiffering = !state.onlyDiffering;
+    renderSegments();
+  });
+
   elements.clearSelectionButton.addEventListener("click", async () => {
+    state.selectedCsj = null;
     state.selectedSegmentIds.clear();
     render();
     await syncSelectedGraphics();
@@ -1811,8 +2140,9 @@ require([
 
   Promise.all([segmentsLayer.load(), roadsQueryLayer.load(), view.when()])
     .then(loadSegments)
+    .then(() => loadCsjs().catch((error) => console.error(error)))
     .then(initializeCountyBoundaries)
-    .then(selectFromUrl)
+    .then(() => selectFromUrl().catch((error) => console.error(error)))
     .catch((error) => {
       console.error(error);
       elements.segmentList.innerHTML =

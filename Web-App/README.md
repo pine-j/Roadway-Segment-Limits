@@ -50,8 +50,16 @@ python -m http.server 8080
 - Click a segment row or map segment to focus the map on that segment.
 - Use the checkboxes to keep multiple segments selected.
 - Click `Zoom selected` to fit all selected segments.
-- Click a CSJ line to see the limits TxDOT's DCIS layer and Project Tracker each give for it, next
-  to the limits of its segment. Both are read live from TxDOT.
+- A segment row that has CSJs shows a small "n CSJs" arrow. Open it to list its CSJs, each with
+  the limits DCIS gives for it. Click a CSJ to select its segment, draw just that CSJ in dark blue,
+  zoom to it and open its popup.
+- The search box finds segments and CSJs. A CSJ number (hyphens optional, four digits or more) or
+  any part of a CSJ's limits wording opens the segment it belongs to and lists the matching CSJs.
+- A CSJ whose DCIS and Project Tracker limits are worded differently (case, spacing and punctuation
+  aside) carries a "Tracker differs" flag and shows the Tracker's wording beneath. The
+  "Limits differ between TxDOT sources" button lists only those CSJs.
+- Click a CSJ line on the map to see the limits TxDOT's DCIS layer and Project Tracker each give
+  for it, next to the limits of its segment. Both are read live from TxDOT.
 - The CSJs of the selected segments are redrawn over the red segment line, so the stretch each
   CSJ covers shows inside the segment.
 - Click a TxDOT roadway on the map to view the roadway name.

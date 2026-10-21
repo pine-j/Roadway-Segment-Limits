@@ -434,6 +434,142 @@ input {
   margin-top: 8px;
 }
 
+.chip-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-strong);
+  color: var(--text);
+  padding: 0.5rem 0.5rem 0.5rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chip-button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: rgba(158, 50, 82, 0.4);
+}
+
+.chip-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.chip-button:focus-visible,
+.csj-toggle:focus-visible,
+.csj-row:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.segment-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.csj-toggle {
+  align-self: flex-start;
+  margin: 0 0 2px 40px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  padding: 2px 6px;
+  color: var(--focus);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.csj-toggle:hover:not(:disabled) {
+  background: rgba(11, 107, 122, 0.08);
+}
+
+.csj-toggle:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.csj-toggle-arrow {
+  display: inline-block;
+  margin-right: 5px;
+  transition: transform 120ms ease;
+}
+
+.csj-toggle[aria-expanded="true"] .csj-toggle-arrow {
+  transform: rotate(90deg);
+}
+
+.csj-differ-note {
+  color: var(--accent-dark);
+}
+
+.csj-list {
+  list-style: none;
+  margin: 0 0 6px 40px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-left: 2px solid rgba(11, 107, 122, 0.25);
+}
+
+.csj-row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  padding: 6px 10px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.csj-row:hover {
+  background: rgba(11, 107, 122, 0.07);
+}
+
+.csj-row.is-match {
+  box-shadow: inset 3px 0 0 var(--focus);
+}
+
+.csj-row.is-selected {
+  background: rgba(0, 90, 200, 0.12);
+}
+
+.csj-number {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.csj-flag {
+  margin-left: 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  padding: 1px 8px;
+  color: var(--accent-dark);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.csj-limits,
+.csj-tracker {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
 @media (max-width: 1300px) {
   .app-shell {
     grid-template-columns: 240px 320px minmax(0, 1fr);
