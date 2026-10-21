@@ -35,6 +35,16 @@ require([
     "https://tiles.arcgis.com/tiles/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Vector_Tile_Basemap/VectorTileServer";
   const TXDOT_ROADS_URL =
     "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadways/FeatureServer/0";
+  // CSJ project lines: layer 0 of the public FTW TMP master service. Its CSJ field holds the nine
+  // digits with no hyphens (001416289) and CSJ_Dashed the usual form (0014-16-289).
+  const CSJ_URL =
+    "https://services9.arcgis.com/eNX73FDxjlKFtCtH/arcgis/rest/services/FTW_TMP_2026_Master/FeatureServer/0";
+  // The two TxDOT layers that each carry a limits wording for a CSJ. They are read live when a
+  // CSJ is clicked, so the popup shows what TxDOT publishes today.
+  const TXDOT_DCIS_URL =
+    "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_DCIS_All_Projects/FeatureServer/0";
+  const TXDOT_TRACKER_URL =
+    "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Projects_Info/FeatureServer/0";
   const COUNTY_BOUNDARY_URL =
     "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/Texas_County_Boundaries/FeatureServer/0";
   const HIGHWAY_DESIGNATION_BASE_URL = "https://www.dot.state.tx.us/tpp/hdf_search.html";
@@ -107,6 +117,30 @@ require([
     listMode: "hide",
   });
 
+  const csjLayer = new FeatureLayer({
+    url: CSJ_URL,
+    title: "FTW CSJs",
+    outFields: ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID", "Segment_Label"],
+    popupEnabled: false,
+    renderer: {
+      type: "simple",
+      symbol: {
+        type: "simple-line",
+        color: [0, 90, 200, 220],
+        width: 2.5,
+        cap: "round",
+        join: "round",
+      },
+    },
+  });
+
+  // The CSJs of the selected segments, drawn over the red segment line so the stretch each CSJ
+  // covers shows inside the segment.
+  const selectedCsjLayer = new GraphicsLayer({
+    title: "CSJs of Selected Segments",
+    listMode: "hide",
+  });
+
   const roadHighlightLayer = new GraphicsLayer({
     title: "Road Highlight",
     listMode: "hide",
@@ -131,7 +165,14 @@ require([
 
   const map = new EsriMap({
     basemap: "gray-vector",
-    layers: [txdotVectorLayer, segmentsLayer, roadHighlightLayer, selectedSegmentsLayer],
+    layers: [
+      txdotVectorLayer,
+      segmentsLayer,
+      csjLayer,
+      roadHighlightLayer,
+      selectedSegmentsLayer,
+      selectedCsjLayer,
+    ],
   });
 
   const view = new MapView({
@@ -159,7 +200,7 @@ require([
     view,
     listItemCreatedFunction(event) {
       const item = event.item;
-      if (item.layer === selectedSegmentsLayer) {
+      if (item.layer === selectedSegmentsLayer || item.layer === selectedCsjLayer) {
         item.hidden = true;
       }
     },
@@ -1123,9 +1164,49 @@ require([
     return new Polyline(geometryJson);
   }
 
+  let selectedCsjSyncToken = 0;
+
+  async function syncSelectedCsjGraphics() {
+    const token = ++selectedCsjSyncToken;
+    const segmentIds = state.segments
+      .filter((segment) => state.selectedSegmentIds.has(segment.objectId) && segment.segmentId)
+      .map((segment) => `'${segment.segmentId.replaceAll("'", "''")}'`);
+
+    selectedCsjLayer.removeAll();
+
+    if (!segmentIds.length) {
+      return;
+    }
+
+    const query = csjLayer.createQuery();
+    query.where = `Segment_ID IN (${segmentIds.join(",")})`;
+    query.returnGeometry = true;
+    query.outFields = ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID", "Segment_Label"];
+
+    const result = await csjLayer.queryFeatures(query);
+
+    // A newer selection started while this query ran, so its answer is out of date.
+    if (token !== selectedCsjSyncToken) {
+      return;
+    }
+
+    result.features.forEach((feature) => {
+      const highlightedFeature = typeof feature.clone === "function" ? feature.clone() : feature;
+      highlightedFeature.symbol = {
+        type: "simple-line",
+        color: [0, 90, 200, 255],
+        width: 3,
+        cap: "round",
+        join: "round",
+      };
+      selectedCsjLayer.add(highlightedFeature);
+    });
+  }
+
   async function syncSelectedGraphics() {
     const objectIds = Array.from(state.selectedSegmentIds);
 
+    syncSelectedCsjGraphics().catch((error) => console.error(error));
     selectedSegmentsLayer.removeAll();
 
     if (!objectIds.length) {
@@ -1494,6 +1575,175 @@ require([
     render();
   }
 
+  async function queryTxdotCsj(url, where, outFields) {
+    const params = new URLSearchParams({ where, outFields, returnGeometry: "false", f: "json" });
+    const response = await fetch(`${url}/query?${params}`);
+
+    if (!response.ok) {
+      throw new Error(`${url} answered ${response.status}`);
+    }
+
+    const json = await response.json();
+
+    if (json.error) {
+      throw new Error(json.error.message);
+    }
+
+    return json.features?.[0]?.attributes ?? null;
+  }
+
+  function formatLimitsPair(record) {
+    if (!record) {
+      return "No record";
+    }
+
+    const from = String(record.LIMITS_FROM ?? "").trim();
+    const to = String(record.LIMITS_TO ?? "").trim();
+
+    return from || to ? `${from || "?"} to ${to || "?"}` : "No limits listed";
+  }
+
+  // Shows what the two TxDOT layers say today about one CSJ, beside the limits of its segment, so
+  // a difference in wording can be told apart from a difference in extent on the map.
+  async function showCsjPopup(attributes, location) {
+    const digits = String(attributes.CSJ ?? "").replace(/\D/g, "");
+    const segment = state.segments.find((item) => item.segmentId === attributes.Segment_ID);
+
+    const [dcis, tracker] = await Promise.allSettled([
+      queryTxdotCsj(
+        TXDOT_DCIS_URL,
+        `CONTROL_SECT_JOB LIKE '%${digits}%'`,
+        "CONTROL_SECT_JOB,LIMITS_FROM,LIMITS_TO",
+      ),
+      queryTxdotCsj(
+        TXDOT_TRACKER_URL,
+        `CONTROL_SECT_JOB = '${digits}'`,
+        "CONTROL_SECT_JOB,LIMITS_FROM,LIMITS_TO,LAST_PROJ_UPDATE_DT",
+      ),
+    ]);
+
+    const describe = (settled) =>
+      settled.status === "fulfilled" ? formatLimitsPair(settled.value) : "Could not load";
+    const trackerUpdated =
+      tracker.status === "fulfilled" && tracker.value?.LAST_PROJ_UPDATE_DT
+        ? new Date(tracker.value.LAST_PROJ_UPDATE_DT).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            timeZone: "UTC",
+          })
+        : "";
+
+    const content = `
+      <div class="road-popup">
+        <p><strong>${escapeHtml(attributes.CSJ_Dashed)}</strong> on ${escapeHtml(
+          attributes.Segment_Label || attributes.Segment_ID,
+        )}</p>
+        <ul>
+          <li>TxDOT DCIS limits: ${escapeHtml(describe(dcis))}</li>
+          <li>TxDOT Project Tracker limits: ${escapeHtml(describe(tracker))}${
+            trackerUpdated ? ` (updated ${escapeHtml(trackerUpdated)})` : ""
+          }</li>
+          ${segment?.limits ? `<li>Segment limits: ${escapeHtml(segment.limits)}</li>` : ""}
+        </ul>
+      </div>
+    `;
+
+    view.openPopup({
+      title: `CSJ ${escapeHtml(attributes.CSJ_Dashed)}`,
+      content,
+      location,
+    });
+  }
+
+  async function selectSegmentOnMap(segment) {
+    state.selectedSegmentIds = new Set([segment.objectId]);
+    state.searchTerm = segment.label;
+    elements.searchInput.value = segment.label;
+    render();
+    await syncSelectedGraphics();
+  }
+
+  // ?csj=0014-16-289 (hyphens optional): selects the CSJ's segment, zooms to the CSJ and opens
+  // its popup. Returns false when no CSJ matches.
+  async function selectCsjFromUrl(requested) {
+    const digits = requested.replace(/\D/g, "");
+
+    if (digits.length !== 9) {
+      return false;
+    }
+
+    const query = csjLayer.createQuery();
+    query.where = `CSJ = '${digits}'`;
+    query.returnGeometry = true;
+    query.outFields = ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID", "Segment_Label"];
+
+    const result = await csjLayer.queryFeatures(query);
+    const csj = result.features[0];
+
+    if (!csj?.geometry) {
+      return false;
+    }
+
+    const segment = state.segments.find((item) => item.segmentId === csj.attributes.Segment_ID);
+
+    if (segment) {
+      await selectSegmentOnMap(segment);
+    }
+
+    await view.goTo(csj.geometry.extent.clone().expand(1.4), {
+      padding: {
+        top: 140,
+        right: 120,
+        bottom: 140,
+        left: 120,
+      },
+    });
+
+    const path = csj.geometry.paths[0];
+    const [x, y] = path[Math.floor(path.length / 2)];
+
+    await showCsjPopup(csj.attributes, {
+      type: "point",
+      x,
+      y,
+      spatialReference: csj.geometry.spatialReference,
+    });
+
+    return true;
+  }
+
+  // Opens the app on one CSJ or one segment from the link: ?csj=0014-16-289, ?segment=IH%2035W%20-%20D
+  // (the segment label) or ?segment=IH0035WD (its Segment_ID). A value that matches nothing leaves
+  // the app as it opens without one.
+  async function selectFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const requestedCsj = params.get("csj");
+
+    if (requestedCsj && (await selectCsjFromUrl(requestedCsj))) {
+      return;
+    }
+
+    const requested = params.get("segment");
+
+    if (!requested) {
+      return;
+    }
+
+    const wanted = requested.trim().toLowerCase();
+    const match = state.segments.find(
+      (segment) =>
+        segment.label.toLowerCase() === wanted || segment.segmentId.toLowerCase() === wanted,
+    );
+
+    if (!match) {
+      return;
+    }
+
+    await selectSegmentOnMap(match);
+    await zoomToSegments([match.objectId]);
+  }
+
   elements.searchInput.addEventListener("input", () => {
     state.searchTerm = elements.searchInput.value;
     renderSegments();
@@ -1513,6 +1763,14 @@ require([
   view.on("click", async (event) => {
     view.closePopup();
     roadHighlightLayer.removeAll();
+
+    const csjHit = await view.hitTest(event, { include: [csjLayer, selectedCsjLayer] });
+    const csjGraphic = csjHit.results.find((result) => result.graphic?.attributes?.CSJ_Dashed)?.graphic;
+
+    if (csjGraphic) {
+      await showCsjPopup(csjGraphic.attributes, event.mapPoint);
+      return;
+    }
 
     const countyLayer = countyBoundaryHitLayer || countyBoundaryLayer;
     if (countyLayer) {
@@ -1554,6 +1812,7 @@ require([
   Promise.all([segmentsLayer.load(), roadsQueryLayer.load(), view.when()])
     .then(loadSegments)
     .then(initializeCountyBoundaries)
+    .then(selectFromUrl)
     .catch((error) => {
       console.error(error);
       elements.segmentList.innerHTML =
