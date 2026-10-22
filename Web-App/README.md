@@ -7,6 +7,8 @@ This is a standalone static ArcGIS JavaScript app that combines:
 - `TxDOT_Vector_Tile_Basemap`
 - A paired `TxDOT_Roadways` feature layer used for roadway-name click queries
   and screenshot-capture road lookups
+- Esri's public address lookup (`geocode.arcgis.com`), used only to name the street under a road
+  click
 
 Hosted app:
 
@@ -85,8 +87,11 @@ Tracker.
   wine) and `All CSJs` (dashed blue) are off when the app opens. The "Map lines" box at the bottom
   left names the selection and has a tick box for each of the four sets of lines; click a line's
   name or box to show or hide it.
-- Click a TxDOT roadway on the map to view its name (the road is drawn black and dashed). Click a
-  county boundary line to view the county boundary popup.
+- Click a TxDOT roadway on the map to view its route (the road is drawn black and dashed). The
+  popup adds a "Street name" line, such as "NE 28th St" for SH 183, a moment later: TxDOT's roadway
+  layer holds the route but no street names, so the name comes from Esri's address lookup (one
+  request per road click). If that lookup fails the line is left out. Click a county boundary line
+  to view the county boundary popup.
 - The automation helpers used by capture tooling live in `app.js`, including
   `__waitForSegments()`, `__selectCorridorSegments()`,
   `__navigateAndCapture()`, and `__queryRoadsNearPoint()`. The capture helpers hide the CSJ lines

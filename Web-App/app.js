@@ -35,6 +35,10 @@ require([
     "https://tiles.arcgis.com/tiles/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Vector_Tile_Basemap/VectorTileServer";
   const TXDOT_ROADS_URL =
     "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadways/FeatureServer/0";
+  // Esri's public address lookup, used only to name the street under a road click: TxDOT's roadway
+  // layer holds the route ("183") but no street names ("NE 28th St").
+  const STREET_LOOKUP_URL =
+    "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode";
   // CSJ project lines: layer 0 of the public FTW TMP master service. Its CSJ field holds the nine
   // digits with no hyphens (001416289) and CSJ_Dashed the usual form (0014-16-289).
   const CSJ_URL =
@@ -2034,7 +2038,40 @@ require([
     return value.toFixed(3);
   }
 
+  // The street name painted on the basemap at a point. A convenience only: any failure or a slow
+  // answer returns "" and the popup simply leaves the line out.
+  async function lookupStreetName(mapPoint) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+
+    try {
+      const params = new URLSearchParams({
+        location: JSON.stringify({
+          x: mapPoint.x,
+          y: mapPoint.y,
+          spatialReference: { wkid: mapPoint.spatialReference?.wkid || 102100 },
+        }),
+        featureTypes: "StreetName",
+        distance: "30",
+        f: "json",
+      });
+      const response = await fetch(`${STREET_LOOKUP_URL}?${params}`, { signal: controller.signal });
+
+      if (!response.ok) {
+        return "";
+      }
+
+      const data = await response.json();
+      return String(data.address?.ShortLabel || data.address?.Address || "").trim();
+    } catch (error) {
+      return "";
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function showRoadPopup(mapPoint) {
+    const token = csjPopupToken;
     const query = roadsQueryLayer.createQuery();
     query.geometry = mapPoint;
     query.distance = Math.max(3, Math.min(view.resolution * 5, 20));
@@ -2057,6 +2094,11 @@ require([
     query.num = 1;
 
     const result = await roadsQueryLayer.queryFeatures(query);
+
+    // A newer click, Clear or selection has happened since: leave the map as that left it.
+    if (token !== csjPopupToken) {
+      return;
+    }
 
     if (!result.features.length) {
       view.closePopup();
@@ -2087,10 +2129,11 @@ require([
 
     const road = roads[0];
     const title = road.name;
-    const content = `
+    const buildContent = (streetName) => `
       <div class="road-popup">
         <p><strong>${escapeHtml(road.routeName)}</strong></p>
         <ul>
+          ${streetName ? `<li>Street name: ${escapeHtml(streetName)}</li>` : ""}
           <li>Roadbed Type: ${escapeHtml(road.roadbedType)}</li>
           <li>Name/Number: ${escapeHtml(road.name)}</li>
           <li>Direction: ${escapeHtml(road.direction || "N/A")}</li>
@@ -2111,9 +2154,16 @@ require([
 
     view.openPopup({
       title: escapeHtml(title),
-      content,
+      content: buildContent(""),
       location: mapPoint,
     });
+
+    // The street name arrives a moment later and is added if this popup is still the one showing.
+    const streetName = await lookupStreetName(mapPoint);
+
+    if (streetName && token === csjPopupToken && view.popup.visible) {
+      view.popup.content = buildContent(streetName);
+    }
   }
 
   async function loadSegments() {
