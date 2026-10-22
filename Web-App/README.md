@@ -89,8 +89,9 @@ Tracker.
   name or box to show or hide it.
 - Click a TxDOT roadway on the map to view its route (the road is drawn black and dashed). The
   popup adds a "Street name" line, such as "NE 28th St" for SH 183, a moment later: TxDOT's roadway
-  layer holds the route but no street names, so the name comes from Esri's address lookup (one
-  request per road click). If that lookup fails the line is left out. Click a county boundary line
+  layer holds the route but no street names, so the name comes from Esri's address lookup, asked
+  at the click and at four points along the road so a cross street at a crossing does not win (five
+  requests per road click). If that lookup fails the line is left out. Click a county boundary line
   to view the county boundary popup.
 - The automation helpers used by capture tooling live in `app.js`, including
   `__waitForSegments()`, `__selectCorridorSegments()`,

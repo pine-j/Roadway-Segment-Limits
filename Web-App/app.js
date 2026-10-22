@@ -2070,9 +2070,75 @@ require([
     }
   }
 
+  // The click and four points along the road, about 70 m and 135 m either side of it. At a crossing
+  // the street nearest the click can be the cross street (IH 35W for SH 183), so the road's own
+  // street is the name most of the points agree on.
+  function roadSamplePoints(roadGeometry, mapPoint) {
+    const samples = [mapPoint];
+
+    if (!roadGeometry?.paths?.length) {
+      return samples;
+    }
+
+    const dense = geometryEngine.densify(roadGeometry, 20, "meters");
+    let nearest = null;
+
+    dense.paths.forEach((path, pathIndex) => {
+      path.forEach((coordinates, index) => {
+        const dx = coordinates[0] - mapPoint.x;
+        const dy = coordinates[1] - mapPoint.y;
+        const distance = dx * dx + dy * dy;
+
+        if (!nearest || distance < nearest.distance) {
+          nearest = { distance, pathIndex, index };
+        }
+      });
+    });
+
+    if (!nearest) {
+      return samples;
+    }
+
+    const path = dense.paths[nearest.pathIndex];
+
+    [-8, -4, 4, 8].forEach((step) => {
+      const coordinates = path[nearest.index + step];
+
+      if (coordinates) {
+        samples.push({
+          x: coordinates[0],
+          y: coordinates[1],
+          spatialReference: mapPoint.spatialReference,
+        });
+      }
+    });
+
+    return samples;
+  }
+
+  async function lookupRoadStreetName(roadGeometry, mapPoint) {
+    const names = (await Promise.all(roadSamplePoints(roadGeometry, mapPoint).map(lookupStreetName))).filter(
+      Boolean,
+    );
+    const counts = {};
+    let best = "";
+
+    names.forEach((name) => {
+      counts[name] = (counts[name] || 0) + 1;
+
+      // The first name to reach the highest count wins a tie, and the click's own name comes first.
+      if (!best || counts[name] > counts[best]) {
+        best = name;
+      }
+    });
+
+    return best;
+  }
+
   async function showRoadPopup(mapPoint) {
     const token = csjPopupToken;
     const query = roadsQueryLayer.createQuery();
+    query.outSpatialReference = view.spatialReference;
     query.geometry = mapPoint;
     query.distance = Math.max(3, Math.min(view.resolution * 5, 20));
     query.units = "meters";
@@ -2159,7 +2225,7 @@ require([
     });
 
     // The street name arrives a moment later and is added if this popup is still the one showing.
-    const streetName = await lookupStreetName(mapPoint);
+    const streetName = await lookupRoadStreetName(hitFeature.geometry, mapPoint);
 
     if (streetName && token === csjPopupToken && view.popup.visible) {
       view.popup.content = buildContent(streetName);
