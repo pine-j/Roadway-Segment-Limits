@@ -39,8 +39,10 @@ require([
   // digits with no hyphens (001416289) and CSJ_Dashed the usual form (0014-16-289).
   const CSJ_URL =
     "https://services9.arcgis.com/eNX73FDxjlKFtCtH/arcgis/rest/services/FTW_TMP_2026_Master/FeatureServer/0";
-  // The two TxDOT layers that each carry a limits wording for a CSJ. They are read live when a
-  // CSJ is clicked, so the popup shows what TxDOT publishes today.
+  // The two TxDOT layers that each carry a limits wording for a CSJ. Both are read in bulk at
+  // start-up for the list, and read again live when a CSJ's popup opens, so the popup shows what
+  // TxDOT publishes at that moment. CONTROL_SECT_JOB holds the nine digits with no spaces or
+  // hyphens, so a CSJ is matched with = (or IN for the bulk read).
   const TXDOT_DCIS_URL =
     "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_DCIS_All_Projects/FeatureServer/0";
   const TXDOT_TRACKER_URL =
@@ -66,24 +68,35 @@ require([
     selectedCsj: null,
     expandedSegmentIds: new Set(),
     onlyDiffering: false,
-    limitsLoaded: false,
+    // "loading", "loaded" or "failed". A failed read is shown as such, never as an empty answer.
+    segmentsStatus: "loading",
+    csjStatus: "loading",
+    limitsStatus: { dcis: "loading", tracker: "loading" },
+    // Set when a ?csj= or ?segment= link matches nothing; shown in the status line until the
+    // next search or selection.
+    linkMessage: "",
   };
 
   const elements = {
     categoryList: document.getElementById("category-list"),
     segmentList: document.getElementById("segment-list"),
     searchInput: document.getElementById("segment-search"),
+    listStatus: document.getElementById("list-status"),
     visibleCount: document.getElementById("visible-count"),
     selectedCount: document.getElementById("selected-count"),
     clearSelectionButton: document.getElementById("clear-selection"),
     zoomSelectedButton: document.getElementById("zoom-selected"),
     differFilter: document.getElementById("differ-filter"),
-    differCount: document.getElementById("differ-count"),
+    differLabel: document.getElementById("differ-label"),
   };
+
+  // The link the page opened with, read before the first render can rewrite the address.
+  const initialParams = new URLSearchParams(window.location.search);
+  // The address follows the selection only once the opening link has been handled.
+  let urlReady = false;
 
   let countyBoundaryLayer = null;
   let countyBoundaryHitLayer = null;
-  let countyBoundaryHoverToken = 0;
   let countyLabelOverlay = null;
   let countyLabelRefreshHandle = 0;
   let countyLabelRecords = [];
@@ -108,10 +121,12 @@ require([
       "Segment_Limits",
     ],
     popupEnabled: false,
+    // Dashed, so "all segments" can be told from the selected segment without relying on hue.
     renderer: {
       type: "simple",
       symbol: {
         type: "simple-line",
+        style: "short-dash",
         color: [158, 50, 82, 230],
         width: 3,
         cap: "round",
@@ -129,13 +144,14 @@ require([
     url: CSJ_URL,
     title: "All FTW CSJs",
     visible: false,
-    outFields: ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID", "Segment_Label"],
+    outFields: ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID"],
     popupEnabled: false,
     renderer: {
       type: "simple",
       symbol: {
         type: "simple-line",
-        color: [92, 148, 226, 210],
+        style: "short-dash",
+        color: [43, 108, 196, 255],
         width: 2,
         cap: "round",
         join: "round",
@@ -143,8 +159,9 @@ require([
     },
   });
 
-  // The CSJs of the selected segments, drawn over the red segment line so the stretch each CSJ
-  // covers shows inside the segment.
+  // The CSJs of the selected segments, drawn over the wine segment line so the stretch each CSJ
+  // covers shows inside the segment: a white casing under a dark blue line, so the CSJ reads by
+  // shape as well as by colour.
   const selectedCsjLayer = new GraphicsLayer({
     title: "CSJs of Selected Segments",
     listMode: "hide",
@@ -192,10 +209,11 @@ require([
     constraints: {
       snapToZoom: false,
     },
+    // Docked top-right so the popup never meets the legend at the bottom left.
     popup: {
       dockEnabled: true,
       dockOptions: {
-        position: "bottom-right",
+        position: "top-right",
         breakpoint: false,
       },
     },
@@ -212,27 +230,26 @@ require([
   legendElement.innerHTML = `
     <div class="map-legend-title">Map lines</div>
     <div class="map-legend-selection" id="legend-selection">Nothing selected</div>
-    <table class="map-legend-table">
-      <thead>
-        <tr>
-          <td></td>
-          <th scope="col">Selected</th>
-          <th scope="col">All</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th scope="row"><span class="map-legend-swatch segment"></span>Segments</th>
-          <td><input type="checkbox" data-legend="selected-segments" aria-label="Show the selected segments" /></td>
-          <td><input type="checkbox" data-legend="all-segments" aria-label="Show all segments" /></td>
-        </tr>
-        <tr>
-          <th scope="row"><span class="map-legend-swatch csj"></span>CSJs</th>
-          <td><input type="checkbox" data-legend="selected-csjs" aria-label="Show the selected CSJs" /></td>
-          <td><input type="checkbox" data-legend="all-csjs" aria-label="Show all CSJs" /></td>
-        </tr>
-      </tbody>
-    </table>
+    <label class="map-legend-row">
+      <input type="checkbox" data-legend="selected-segments" />
+      <span class="map-legend-swatch selected-segment" aria-hidden="true"></span>
+      <span data-legend-text="selected-segments">Selected segments</span>
+    </label>
+    <label class="map-legend-row">
+      <input type="checkbox" data-legend="selected-csjs" />
+      <span class="map-legend-swatch selected-csj" aria-hidden="true"></span>
+      <span data-legend-text="selected-csjs">CSJs of the selected segments</span>
+    </label>
+    <label class="map-legend-row">
+      <input type="checkbox" data-legend="all-segments" />
+      <span class="map-legend-swatch all-segments" aria-hidden="true"></span>
+      <span>All segments</span>
+    </label>
+    <label class="map-legend-row">
+      <input type="checkbox" data-legend="all-csjs" />
+      <span class="map-legend-swatch all-csjs" aria-hidden="true"></span>
+      <span>All CSJs</span>
+    </label>
   `;
 
   const legendLayers = {
@@ -254,9 +271,8 @@ require([
     });
   });
 
-  // The layer list can switch the same two layers, so the ticks follow them.
-  segmentsLayer.watch("visible", syncLegendChecks);
-  csjLayer.watch("visible", syncLegendChecks);
+  // The layer list and the capture helpers can switch the same layers, so the ticks follow them.
+  Object.values(legendLayers).forEach((layer) => layer.watch("visible", syncLegendChecks));
   syncLegendChecks();
   view.ui.add(legendElement, "bottom-left");
 
@@ -962,25 +978,82 @@ require([
       .replace(/[^a-z0-9]/g, "");
   }
 
-  // "IH 30 to 28th Street", or "" when the record is missing or carries no limits.
+  // One half of a TxDOT limits wording. Text with no letter or digit (TxDOT writes a lone "." as
+  // the To of a point location, "At Brazos River" to ".") counts as empty.
+  function cleanLimitPart(value) {
+    const text = String(value ?? "").trim();
+    return /[a-z0-9]/i.test(text) ? text : "";
+  }
+
+  // "IH 30 to 28th Street"; just the one half when the other is empty; "" when the record is
+  // missing or carries no limits.
   function wordingOf(record) {
     if (!record || (!record.from && !record.to)) {
       return "";
     }
 
-    return `${record.from || "?"} to ${record.to || "?"}`;
-  }
-
-  // What the row of a CSJ shows as its limits: DCIS first, the Project Tracker when DCIS has none.
-  function csjLimitsLabel(csj) {
-    const dcis = wordingOf(csj.dcis);
-
-    if (dcis) {
-      return dcis;
+    if (!record.from || !record.to) {
+      return record.from || record.to;
     }
 
-    const tracker = wordingOf(csj.tracker);
-    return tracker ? `${tracker} (Tracker)` : "";
+    return `${record.from} to ${record.to}`;
+  }
+
+  function wordingHtml(record, boldFrom = false, boldTo = false) {
+    const half = (text, bold) => {
+      const html = escapeHtml(text);
+      return bold && text ? `<strong>${html}</strong>` : html;
+    };
+
+    if (!record.from || !record.to) {
+      return record.from ? half(record.from, boldFrom) : half(record.to, boldTo);
+    }
+
+    return `${half(record.from, boldFrom)} to ${half(record.to, boldTo)}`;
+  }
+
+  // The two lines under a CSJ number: what DCIS says, and what the Project Tracker says ("same"
+  // when the two agree, "no record" when the Tracker has no row for the CSJ).
+  function csjLimitLinesHtml(csj) {
+    const { dcis, tracker } = state.limitsStatus;
+    const line = (label, html) =>
+      `<span class="csj-line"><span class="csj-source">${label}:</span> ${html}</span>`;
+
+    if (dcis === "loading" || tracker === "loading") {
+      return '<span class="csj-line is-note">Loading TxDOT limits...</span>';
+    }
+
+    if (dcis === "failed" && tracker === "failed") {
+      return '<span class="csj-line is-note">TxDOT limits could not be loaded</span>';
+    }
+
+    let dcisHtml = "not loaded";
+
+    if (dcis === "loaded") {
+      dcisHtml = !csj.dcis ? "no record" : escapeHtml(wordingOf(csj.dcis)) || "no limits listed";
+    }
+
+    let trackerHtml = "not loaded";
+
+    if (tracker === "loaded") {
+      if (!csj.tracker) {
+        trackerHtml = "no record";
+      } else if (!wordingOf(csj.tracker)) {
+        trackerHtml = "no limits listed";
+      } else if (csj.differs) {
+        trackerHtml = wordingHtml(
+          csj.tracker,
+          normalizeWording(csj.dcis.from) !== normalizeWording(csj.tracker.from),
+          normalizeWording(csj.dcis.to) !== normalizeWording(csj.tracker.to),
+        );
+      } else if (dcis === "loaded" && wordingOf(csj.dcis)) {
+        trackerHtml = "same";
+      } else {
+        trackerHtml = escapeHtml(wordingOf(csj.tracker));
+      }
+    }
+
+    return line("DCIS", dcisHtml) + line("Tracker", trackerHtml);
   }
 
   function segmentMatchesText(segment, normalizedSearch) {
@@ -999,15 +1072,19 @@ require([
     return haystack.includes(normalizedSearch);
   }
 
-  // A CSJ matches on its number (hyphens optional, four digits or more) or on either limits wording.
+  // A CSJ matches on its number only when the search is a number (digits, hyphens and spaces, at
+  // least three digits), so "FM 1810" does not hit an unrelated CSJ whose digits contain 1810.
+  // Any search also matches either limits wording, as segments match their own text.
   function csjMatchesSearch(csj, normalizedSearch) {
-    const digitsQuery = normalizedSearch.replace(/\D/g, "");
+    if (/^[\d\s-]+$/.test(normalizedSearch)) {
+      const digitsQuery = normalizedSearch.replace(/\D/g, "");
 
-    if (digitsQuery.length >= 4 && csj.digits.includes(digitsQuery)) {
-      return true;
+      if (digitsQuery.length >= 3 && csj.digits.includes(digitsQuery)) {
+        return true;
+      }
     }
 
-    return [csj.dashed, wordingOf(csj.dcis), wordingOf(csj.tracker)]
+    return [wordingOf(csj.dcis), wordingOf(csj.tracker)]
       .join(" ")
       .toLowerCase()
       .includes(normalizedSearch);
@@ -1017,7 +1094,8 @@ require([
     return state.csjsBySegment.get(segment.segmentId) ?? [];
   }
 
-  // The CSJ selected from the pane or a link, while its segment is still selected.
+  // The CSJ selected from the pane, the map or a link, while its segment is still selected. Reads
+  // only: a call site that changes the selection clears state.selectedCsj itself.
   function getSelectedCsj() {
     const csj = state.selectedCsj
       ? state.csjs.find((item) => item.digits === state.selectedCsj)
@@ -1025,12 +1103,20 @@ require([
     const segment = csj ? state.segments.find((item) => item.segmentId === csj.segmentId) : null;
 
     if (!csj || !segment || !state.selectedSegmentIds.has(segment.objectId)) {
-      state.selectedCsj = null;
       return null;
     }
 
     return csj;
   }
+
+  function formatDashedCsj(digits) {
+    return digits.length === 9
+      ? `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`
+      : digits;
+  }
+
+  const plural = (count, singular, pluralForm = `${singular}s`) =>
+    `${count} ${count === 1 ? singular : pluralForm}`;
 
   function getVisibleSegments() {
     const normalizedSearch = state.searchTerm.trim().toLowerCase();
@@ -1093,11 +1179,41 @@ require([
       state.selectedSegmentIds = new Set(
         Array.from(state.selectedSegmentIds).filter((objectId) => allowedIds.has(objectId)),
       );
+
+      if (!getSelectedCsj()) {
+        state.selectedCsj = null;
+      }
+    }
+  }
+
+  // Notes which control in a container has keyboard focus, by its data-* key, so it can be found
+  // again after the container's HTML is rebuilt.
+  function rememberFocus(container, keys) {
+    const active = document.activeElement;
+
+    if (!active || !container.contains(active)) {
+      return null;
+    }
+
+    for (const key of keys) {
+      if (active.dataset[key] !== undefined) {
+        const attribute = key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+        return `[data-${attribute}="${CSS.escape(active.dataset[key])}"]`;
+      }
+    }
+
+    return null;
+  }
+
+  function restoreFocus(container, selector) {
+    if (selector) {
+      container.querySelector(selector)?.focus({ preventScroll: true });
     }
   }
 
   function renderCategories() {
     const summaries = getCategorySummaries();
+    const focusSelector = rememberFocus(elements.categoryList, ["category"]);
 
     elements.categoryList.innerHTML = summaries
       .map(
@@ -1119,9 +1235,11 @@ require([
         state.activeCategory = button.dataset.category;
         applyCategoryFilter();
         render();
-        syncSelectedGraphics();
+        syncSelectedGraphics().catch((error) => console.error(error));
       });
     });
+
+    restoreFocus(elements.categoryList, focusSelector);
   }
 
   function formatSegmentLength(value) {
@@ -1134,27 +1252,106 @@ require([
     return `${value.toFixed(value >= 10 ? 1 : 2)} mi`;
   }
 
-  function renderSegments() {
+  // What the status line under the search says: the counts of what the list shows, the state of
+  // the CSJ read, and the answer to a link that matched nothing.
+  function listStatusText() {
+    if (state.segmentsStatus === "loading") {
+      return "Loading segments...";
+    }
+
+    if (state.segmentsStatus === "failed") {
+      return "Segments could not be loaded";
+    }
+
+    const searchText = state.searchTerm.trim();
+    const normalizedSearch = searchText.toLowerCase();
     const visibleSegments = getVisibleSegments();
+    const segmentsText = plural(visibleSegments.length, "segment");
+    let text;
 
-    elements.visibleCount.textContent = String(visibleSegments.length);
-    elements.selectedCount.textContent = String(state.selectedSegmentIds.size);
-    elements.clearSelectionButton.disabled = state.selectedSegmentIds.size === 0;
-    elements.zoomSelectedButton.disabled = state.selectedSegmentIds.size === 0;
-    elements.differFilter.disabled = !state.limitsLoaded;
-    elements.differFilter.setAttribute("aria-pressed", String(state.onlyDiffering));
-    elements.differCount.textContent = state.limitsLoaded
-      ? String(state.csjs.filter((csj) => csj.differs).length)
-      : "...";
+    const segmentsMatch = searchText
+      ? ` ${visibleSegments.length === 1 ? "matches" : "match"} '${searchText}'`
+      : "";
 
-    if (!visibleSegments.length) {
-      elements.segmentList.innerHTML =
-        '<div class="empty-state">No segments match the current filter.</div>';
+    if (state.csjStatus === "failed") {
+      text = `${segmentsText}${segmentsMatch}. CSJs could not be loaded`;
+    } else if (state.csjStatus === "loading") {
+      text = `${segmentsText}${segmentsMatch}. CSJs still loading`;
+    } else {
+      const csjCount = visibleSegments.reduce((total, segment) => {
+        const csjs = getSegmentCsjs(segment).filter(
+          (csj) =>
+            (!state.onlyDiffering || csj.differs) &&
+            (!normalizedSearch || csjMatchesSearch(csj, normalizedSearch)),
+        );
+        return total + csjs.length;
+      }, 0);
+      text = `${segmentsText}, ${plural(csjCount, "CSJ")}${searchText ? ` match '${searchText}'` : ""}`;
+    }
+
+    return state.linkMessage ? `${state.linkMessage}. ${text}` : text;
+  }
+
+  let listStatusTimer = 0;
+
+  // While someone types, the status line waits for a 400 ms pause so it is not re-announced on
+  // every keystroke.
+  function updateListStatus(delay = 0) {
+    clearTimeout(listStatusTimer);
+
+    if (delay) {
+      listStatusTimer = setTimeout(() => updateListStatus(), delay);
       return;
     }
 
-    const normalizedSearch = state.searchTerm.trim().toLowerCase();
+    elements.listStatus.textContent = listStatusText();
+  }
+
+  function updateDifferFilter() {
+    const { dcis, tracker } = state.limitsStatus;
+    const loaded = dcis === "loaded" && tracker === "loaded";
+    const failed = dcis === "failed" || tracker === "failed";
+    const count = state.csjs.filter((csj) => csj.differs).length;
+
+    elements.differFilter.disabled = !loaded;
+    elements.differFilter.checked = loaded && state.onlyDiffering;
+    elements.differLabel.textContent = `Only CSJs whose limits differ (${
+      loaded ? count : failed ? "unavailable" : "loading"
+    })`;
+  }
+
+  function renderSegments({ statusDelay = 0 } = {}) {
+    const visibleSegments = getVisibleSegments();
+    const hasSelection = state.selectedSegmentIds.size > 0;
+
+    elements.visibleCount.textContent = String(visibleSegments.length);
+    elements.selectedCount.textContent = String(state.selectedSegmentIds.size);
+    elements.clearSelectionButton.disabled = !(
+      hasSelection ||
+      state.selectedCsj ||
+      state.searchTerm.trim() ||
+      state.onlyDiffering
+    );
+    elements.zoomSelectedButton.disabled = !hasSelection;
+    updateDifferFilter();
+    updateListStatus(statusDelay);
+
+    if (state.segmentsStatus !== "loaded") {
+      return;
+    }
+
+    const searchText = state.searchTerm.trim();
+
+    if (!visibleSegments.length) {
+      elements.segmentList.innerHTML = searchText
+        ? `<div class="empty-state">No segment or CSJ matches '${escapeHtml(searchText)}'.</div>`
+        : '<div class="empty-state">No segments match the current filter.</div>';
+      return;
+    }
+
+    const normalizedSearch = searchText.toLowerCase();
     const selectedCsj = getSelectedCsj();
+    const focusSelector = rememberFocus(elements.segmentList, ["toggleId", "csj", "csjToggle"]);
 
     elements.segmentList.innerHTML = visibleSegments
       .map((segment) => {
@@ -1179,26 +1376,31 @@ require([
         const differingCount = csjs.filter((csj) => csj.differs).length;
         const countLabel =
           shownCsjs.length === csjs.length
-            ? `${csjs.length} CSJ${csjs.length === 1 ? "" : "s"}`
+            ? plural(csjs.length, "CSJ")
             : `${shownCsjs.length} of ${csjs.length} CSJs`;
+        const differNote = differingCount
+          ? ` <span class="csj-differ-note">&middot; ${differingCount} ${
+              differingCount === 1 ? "differs" : "differ"
+            }</span>`
+          : "";
 
-        const csjToggle = csjs.length
-          ? `
+        // An opened-by-search segment cannot be closed, so its count is plain text, not a button.
+        let csjToggle = "";
+
+        if (csjs.length && isAutoExpanded) {
+          csjToggle = `<span class="csj-count">${countLabel}${differNote}</span>`;
+        } else if (csjs.length) {
+          csjToggle = `
             <button
               type="button"
               class="csj-toggle"
               data-csj-toggle="${segment.objectId}"
               aria-expanded="${isExpanded}"
-              ${isAutoExpanded ? "disabled" : ""}
             >
-              <span class="csj-toggle-arrow" aria-hidden="true">&#9656;</span>${countLabel}${
-                differingCount
-                  ? ` <span class="csj-differ-note">&middot; ${differingCount} differ</span>`
-                  : ""
-              }
+              <span class="csj-toggle-arrow" aria-hidden="true">&#9656;</span>${countLabel}${differNote}
             </button>
-          `
-          : "";
+          `;
+        }
 
         const csjList =
           csjs.length && isExpanded
@@ -1206,28 +1408,21 @@ require([
             <ul class="csj-list">
               ${shownCsjs
                 .map((csj) => {
-                  const limits = csjLimitsLabel(csj);
-                  const trackerWording = wordingOf(csj.tracker);
+                  const isChosen = selectedCsj?.digits === csj.digits;
                   const isMatch = normalizedSearch && csjMatchesSearch(csj, normalizedSearch);
 
                   return `
                     <li>
                       <button
                         type="button"
-                        class="csj-row ${selectedCsj?.digits === csj.digits ? "is-selected" : ""} ${
-                          isMatch ? "is-match" : ""
-                        }"
+                        class="csj-row ${isChosen ? "is-selected" : ""} ${isMatch ? "is-match" : ""}"
                         data-csj="${csj.digits}"
+                        aria-pressed="${isChosen}"
                       >
                         <span class="csj-number">${escapeHtml(csj.dashed)}${
-                          csj.differs ? '<span class="csj-flag">Tracker differs</span>' : ""
+                          csj.differs ? '<span class="csj-flag">Limits differ</span>' : ""
                         }</span>
-                        ${limits ? `<span class="csj-limits">${escapeHtml(limits)}</span>` : ""}
-                        ${
-                          csj.differs
-                            ? `<span class="csj-tracker">Tracker: ${escapeHtml(trackerWording)}</span>`
-                            : ""
-                        }
+                        ${csjLimitLinesHtml(csj)}
                       </button>
                     </li>
                   `;
@@ -1251,7 +1446,7 @@ require([
                 ${
                   segment.limits
                     ? `<span class="segment-limits">${escapeHtml(segment.limits)}</span>`
-                    : ""
+                    : '<span class="segment-limits is-missing">No segment limits recorded</span>'
                 }
               </span>
               ${lengthLabel ? `<span class="segment-length">${lengthLabel}</span>` : ""}
@@ -1268,6 +1463,7 @@ require([
         const objectId = Number(checkbox.dataset.toggleId);
 
         state.selectedCsj = null;
+        state.linkMessage = "";
 
         if (checkbox.checked) {
           state.selectedSegmentIds.add(objectId);
@@ -1276,8 +1472,10 @@ require([
         }
 
         render();
-        await syncSelectedGraphics();
-        await zoomToSegments(Array.from(state.selectedSegmentIds));
+
+        if (await syncSelectedGraphics()) {
+          await zoomToSegments(Array.from(state.selectedSegmentIds));
+        }
       });
     });
 
@@ -1297,12 +1495,15 @@ require([
 
     elements.segmentList.querySelectorAll("[data-csj]").forEach((button) => {
       button.addEventListener("click", () => {
+        state.linkMessage = "";
         focusCsj(button.dataset.csj).catch((error) => console.error(error));
       });
     });
+
+    restoreFocus(elements.segmentList, focusSelector);
   }
 
-  // Says what the selected lines are, so the red and blue lines can be matched to the list.
+  // Says what the selected lines are, so the wine and blue lines can be matched to the list.
   function updateLegend() {
     const segments = state.segments.filter((segment) =>
       state.selectedSegmentIds.has(segment.objectId),
@@ -1318,19 +1519,56 @@ require([
     if (selectedCsj) {
       parts.push(`CSJ ${selectedCsj.dashed}`);
     } else if (csjCount) {
-      parts.push(`${csjCount} CSJ${csjCount === 1 ? "" : "s"}`);
+      parts.push(plural(csjCount, "CSJ"));
     }
 
     legendElement.querySelector("#legend-selection").textContent = parts.length
       ? `Selected: ${parts.join(" \u00b7 ")}`
       : "Nothing selected";
+    legendElement.querySelector('[data-legend-text="selected-segments"]').textContent =
+      segments.length === 1 ? "Selected segment" : "Selected segments";
+    legendElement.querySelector('[data-legend-text="selected-csjs"]').textContent = selectedCsj
+      ? "Selected CSJ"
+      : segments.length === 1
+        ? "CSJs of the selected segment"
+        : "CSJs of the selected segments";
     syncLegendChecks();
+  }
+
+  // Keeps the address in step with the selection: ?csj= for a chosen CSJ, ?segment=<Segment_ID>
+  // for one selected segment, the bare path otherwise.
+  function syncUrl() {
+    if (!urlReady) {
+      return;
+    }
+
+    const params = new URLSearchParams();
+    const selectedCsj = getSelectedCsj();
+
+    if (selectedCsj) {
+      params.set("csj", selectedCsj.dashed || formatDashedCsj(selectedCsj.digits));
+    } else if (state.selectedSegmentIds.size === 1) {
+      const [objectId] = state.selectedSegmentIds;
+      const segment = state.segments.find((item) => item.objectId === objectId);
+
+      if (segment?.segmentId) {
+        params.set("segment", segment.segmentId);
+      }
+    }
+
+    const query = params.toString();
+    const url = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+
+    if (url !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+      history.replaceState(history.state, "", url);
+    }
   }
 
   function render() {
     renderCategories();
     renderSegments();
     updateLegend();
+    syncUrl();
   }
 
   async function querySegments(objectIds) {
@@ -1437,10 +1675,14 @@ require([
     return new Polyline(geometryJson);
   }
 
-  let selectedCsjSyncToken = 0;
+  // Counts selection changes. Each async step that draws or zooms for a selection checks it after
+  // every wait, so a late answer never draws over, or zooms away from, a newer selection or Clear.
+  let selectionVersion = 0;
+  // Counts CSJ popups asked for. A late TxDOT answer opens its popup only if no newer popup was
+  // asked for and no map click or selection change closed it meanwhile.
+  let csjPopupToken = 0;
 
-  async function syncSelectedCsjGraphics() {
-    const token = ++selectedCsjSyncToken;
+  async function syncSelectedCsjGraphics(version) {
     const segmentIds = state.segments
       .filter((segment) => state.selectedSegmentIds.has(segment.objectId) && segment.segmentId)
       .map((segment) => `'${segment.segmentId.replaceAll("'", "''")}'`);
@@ -1457,39 +1699,66 @@ require([
       ? `CSJ = '${selectedCsj.digits}'`
       : `Segment_ID IN (${segmentIds.join(",")})`;
     query.returnGeometry = true;
-    query.outFields = ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID", "Segment_Label"];
+    query.outFields = ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID"];
 
     const result = await csjLayer.queryFeatures(query);
 
     // A newer selection started while this query ran, so its answer is out of date.
-    if (token !== selectedCsjSyncToken) {
+    if (version !== selectionVersion) {
       return;
     }
 
+    // Each CSJ is a white casing under a dark blue line; the casing goes in first so it draws
+    // underneath, and both carry the CSJ's attributes so a click on either finds the CSJ.
+    const casings = [];
+    const lines = [];
+
     result.features.forEach((feature) => {
-      const highlightedFeature = typeof feature.clone === "function" ? feature.clone() : feature;
-      highlightedFeature.symbol = {
+      const casing = typeof feature.clone === "function" ? feature.clone() : feature;
+      casing.symbol = {
         type: "simple-line",
-        color: [0, 90, 200, 255],
+        color: [255, 255, 255, 255],
+        width: 5,
+        cap: "round",
+        join: "round",
+      };
+      casings.push(casing);
+
+      const line = typeof feature.clone === "function" ? feature.clone() : feature;
+      line.symbol = {
+        type: "simple-line",
+        color: [0, 60, 143, 255],
         width: 3,
         cap: "round",
         join: "round",
       };
-      selectedCsjLayer.add(highlightedFeature);
+      lines.push(line);
     });
+
+    selectedCsjLayer.addMany([...casings, ...lines]);
   }
 
+  // Draws the selected segments and their CSJs. Resolves true when this is still the newest
+  // selection once both are drawn, so a caller zooms only for a selection that still stands.
   async function syncSelectedGraphics() {
+    const version = ++selectionVersion;
     const objectIds = Array.from(state.selectedSegmentIds);
 
-    syncSelectedCsjGraphics().catch((error) => console.error(error));
+    csjPopupToken += 1;
     selectedSegmentsLayer.removeAll();
 
+    const csjSync = syncSelectedCsjGraphics(version).catch((error) => console.error(error));
+
     if (!objectIds.length) {
-      return;
+      await csjSync;
+      return version === selectionVersion;
     }
 
     const features = await querySegments(objectIds);
+
+    if (version !== selectionVersion) {
+      return false;
+    }
 
     features.forEach((feature) => {
       const highlightedFeature = typeof feature.clone === "function" ? feature.clone() : feature;
@@ -1497,18 +1766,22 @@ require([
       highlightedFeature.symbol = {
         type: "simple-line",
         color: [158, 50, 82, 255],
-        width: 5,
+        width: 9,
         cap: "round",
         join: "round",
       };
       selectedSegmentsLayer.add(highlightedFeature);
     });
+
+    await csjSync;
+    return version === selectionVersion;
   }
 
   async function zoomToSegments(objectIds) {
+    const version = selectionVersion;
     const features = await querySegments(objectIds);
 
-    if (!features.length) {
+    if (!features.length || version !== selectionVersion) {
       return;
     }
 
@@ -1523,6 +1796,10 @@ require([
       maxScale: 140000,
     });
 
+    if (version !== selectionVersion) {
+      return;
+    }
+
     await view.goTo(
       {
         center: view.center,
@@ -1532,7 +1809,20 @@ require([
         animate: false,
       },
     );
+  }
 
+  // The pipeline screenshots show the segments only: both CSJ layers are hidden while a capture
+  // runs and put back exactly as they were, so the legend ticks end where they started.
+  async function withCsjLinesHidden(work) {
+    const wasVisible = [selectedCsjLayer.visible, csjLayer.visible];
+    selectedCsjLayer.visible = false;
+    csjLayer.visible = false;
+
+    try {
+      return await work();
+    } finally {
+      [selectedCsjLayer.visible, csjLayer.visible] = wasVisible;
+    }
   }
 
   // ── Automation API ──────────────────────────────────────────────
@@ -1570,9 +1860,11 @@ require([
     if (!match) {
       return false;
     }
+    state.selectedCsj = null;
     state.selectedSegmentIds.clear();
     state.selectedSegmentIds.add(match.objectId);
     render();
+    // Waits for the segment and CSJ queries both, so nothing lands after this returns.
     await syncSelectedGraphics();
     await zoomToSegments([match.objectId]);
     return true;
@@ -1600,14 +1892,16 @@ require([
     });
   };
 
-  window.__captureView = async function (width, height) {
-    await window.__waitForTiles(15000);
-    var screenshot = await view.takeScreenshot({
-      width: width || 1920,
-      height: height || 1080,
-      format: "png",
+  window.__captureView = function (width, height) {
+    return withCsjLinesHidden(async function () {
+      await window.__waitForTiles(15000);
+      var screenshot = await view.takeScreenshot({
+        width: width || 1920,
+        height: height || 1080,
+        format: "png",
+      });
+      return screenshot.dataUrl;
     });
-    return screenshot.dataUrl;
   };
 
   window.__selectCorridorSegments = async function (segmentName) {
@@ -1624,6 +1918,7 @@ require([
       return false;
     }
 
+    state.selectedCsj = null;
     state.selectedSegmentIds.clear();
     matches.forEach((m) => state.selectedSegmentIds.add(m.objectId));
     render();
@@ -1675,18 +1970,21 @@ require([
     return roads;
   };
 
-  window.__navigateAndCapture = async function (_segmentName, lon, lat, closeZoom, contextZoom) {
+  window.__navigateAndCapture = function (_segmentName, lon, lat, closeZoom, contextZoom) {
     closeZoom = closeZoom || 17;
     contextZoom = contextZoom || 15;
-    await view.goTo({ center: [lon, lat], zoom: closeZoom }, { animate: false });
-    await window.__waitForTiles(15000);
-    var closeImg = await view.takeScreenshot({ width: 1920, height: 1080, format: "png" });
 
-    await view.goTo({ center: [lon, lat], zoom: contextZoom }, { animate: false });
-    await window.__waitForTiles(15000);
-    var contextImg = await view.takeScreenshot({ width: 1920, height: 1080, format: "png" });
+    return withCsjLinesHidden(async function () {
+      await view.goTo({ center: [lon, lat], zoom: closeZoom }, { animate: false });
+      await window.__waitForTiles(15000);
+      var closeImg = await view.takeScreenshot({ width: 1920, height: 1080, format: "png" });
 
-    return { close: closeImg.dataUrl, context: contextImg.dataUrl };
+      await view.goTo({ center: [lon, lat], zoom: contextZoom }, { animate: false });
+      await window.__waitForTiles(15000);
+      var contextImg = await view.takeScreenshot({ width: 1920, height: 1080, format: "png" });
+
+      return { close: closeImg.dataUrl, context: contextImg.dataUrl };
+    });
   };
 
   function dedupeRoadResults(features) {
@@ -1765,13 +2063,14 @@ require([
       return;
     }
 
-    // Highlight the clicked road on the map
+    // Highlight the clicked road on the map: black and dashed, apart from the wine and blue lines.
     const hitFeature = result.features[0];
     if (hitFeature.geometry) {
       const highlight = typeof hitFeature.clone === "function" ? hitFeature.clone() : hitFeature;
       highlight.symbol = {
         type: "simple-line",
-        color: [0, 180, 220, 255],
+        style: "dash",
+        color: [0, 0, 0, 255],
         width: 5,
         cap: "round",
         join: "round",
@@ -1848,6 +2147,7 @@ require([
       }))
       .sort(sortByLabel);
 
+    state.segmentsStatus = "loaded";
     render();
   }
 
@@ -1876,27 +2176,52 @@ require([
     return records[0] ?? null;
   }
 
-  function formatLimitsPair(record) {
-    if (!record) {
-      return "No record";
+  function formatTrackerDate(value) {
+    if (!value) {
+      return "";
     }
 
-    const from = String(record.LIMITS_FROM ?? "").trim();
-    const to = String(record.LIMITS_TO ?? "").trim();
+    return new Date(value).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+  }
 
-    return from || to ? `${from || "?"} to ${to || "?"}` : "No limits listed";
+  // One row of the popup's From/To table, from a settled live read of one TxDOT layer.
+  function popupLimitsRow(labelHtml, settled) {
+    let cells;
+
+    if (settled.status !== "fulfilled") {
+      cells = '<td colspan="2">Could not load</td>';
+    } else if (!settled.value) {
+      cells = '<td colspan="2">No record</td>';
+    } else {
+      const from = cleanLimitPart(settled.value.LIMITS_FROM);
+      const to = cleanLimitPart(settled.value.LIMITS_TO);
+      cells =
+        from || to
+          ? `<td>${escapeHtml(from)}</td><td>${escapeHtml(to)}</td>`
+          : '<td colspan="2">No limits listed</td>';
+    }
+
+    return `<tr><th scope="row">${labelHtml}</th>${cells}</tr>`;
   }
 
   // Shows what the two TxDOT layers say today about one CSJ, beside the limits of its segment, so
   // a difference in wording can be told apart from a difference in extent on the map.
   async function showCsjPopup(attributes, location) {
+    const token = ++csjPopupToken;
     const digits = String(attributes.CSJ ?? "").replace(/\D/g, "");
+    const dashed = attributes.CSJ_Dashed || formatDashedCsj(digits);
+    // Joined on Segment_ID; the name shown is the label the list uses.
     const segment = state.segments.find((item) => item.segmentId === attributes.Segment_ID);
 
     const [dcis, tracker] = await Promise.allSettled([
       queryTxdotCsj(
         TXDOT_DCIS_URL,
-        `CONTROL_SECT_JOB LIKE '%${digits}%'`,
+        `CONTROL_SECT_JOB = '${digits}'`,
         "CONTROL_SECT_JOB,LIMITS_FROM,LIMITS_TO",
       ),
       queryTxdotCsj(
@@ -1906,52 +2231,63 @@ require([
       ),
     ]);
 
-    const describe = (settled) =>
-      settled.status === "fulfilled" ? formatLimitsPair(settled.value) : "Could not load";
+    // A newer CSJ was chosen, or a map click or selection change closed the popup, meanwhile.
+    if (token !== csjPopupToken) {
+      return;
+    }
+
     const trackerUpdated =
-      tracker.status === "fulfilled" && tracker.value?.LAST_PROJ_UPDATE_DT
-        ? new Date(tracker.value.LAST_PROJ_UPDATE_DT).toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-            timeZone: "UTC",
-          })
-        : "";
+      tracker.status === "fulfilled" ? formatTrackerDate(tracker.value?.LAST_PROJ_UPDATE_DT) : "";
+    const segmentName = segment?.label || attributes.Segment_ID || "not found";
 
     const content = `
-      <div class="road-popup">
-        <p><strong>${escapeHtml(attributes.CSJ_Dashed)}</strong> on ${escapeHtml(
-          attributes.Segment_Label || attributes.Segment_ID,
-        )}</p>
-        <ul>
-          <li>TxDOT DCIS limits: ${escapeHtml(describe(dcis))}</li>
-          <li>TxDOT Project Tracker limits: ${escapeHtml(describe(tracker))}${
-            trackerUpdated ? ` (updated ${escapeHtml(trackerUpdated)})` : ""
-          }</li>
-          ${segment?.limits ? `<li>Segment limits: ${escapeHtml(segment.limits)}</li>` : ""}
-        </ul>
+      <div class="csj-popup">
+        <p>Segment ${escapeHtml(segmentName)}</p>
+        <table class="csj-popup-table">
+          <thead>
+            <tr><td></td><th scope="col">From</th><th scope="col">To</th></tr>
+          </thead>
+          <tbody>
+            ${popupLimitsRow("DCIS", dcis)}
+            ${popupLimitsRow(
+              `Project Tracker${
+                trackerUpdated
+                  ? `<span class="csj-popup-date">updated ${escapeHtml(trackerUpdated)}</span>`
+                  : ""
+              }`,
+              tracker,
+            )}
+            <tr>
+              <th scope="row">Segment limits</th>
+              <td colspan="2">${
+                segment?.limits ? escapeHtml(segment.limits) : "No segment limits recorded"
+              }</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     `;
 
     view.openPopup({
-      title: `CSJ ${escapeHtml(attributes.CSJ_Dashed)}`,
+      title: `CSJ ${escapeHtml(dashed)}`,
       content,
       location,
     });
   }
 
+  // Selects exactly one segment, from a map click or a ?segment= link, and narrows the list to it.
   async function selectSegmentOnMap(segment) {
     state.selectedCsj = null;
     state.selectedSegmentIds = new Set([segment.objectId]);
     state.searchTerm = segment.label;
     elements.searchInput.value = segment.label;
     render();
-    await syncSelectedGraphics();
+    return syncSelectedGraphics();
   }
 
-  // Selects one CSJ, from its row in the pane or from a ?csj= link: its segment is selected and
-  // opened in the list, the map zooms to the CSJ, and its popup opens. Returns false when no CSJ
-  // matches.
+  // Selects one CSJ, from its row in the pane, its line on the map or a ?csj= link: its segment is
+  // selected and opened in the list, the map zooms to the CSJ, and its popup opens. Returns false
+  // when no CSJ matches.
   async function focusCsj(digits) {
     const csj = state.csjs.find((item) => item.digits === digits);
 
@@ -1959,15 +2295,31 @@ require([
       return false;
     }
 
+    const version = ++selectionVersion;
     const query = csjLayer.createQuery();
     query.where = `CSJ = '${csj.digits}'`;
     query.returnGeometry = true;
-    query.outFields = ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID", "Segment_Label"];
+    query.outFields = ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID"];
 
-    const result = await csjLayer.queryFeatures(query);
-    const feature = result.features[0];
+    let feature;
+
+    try {
+      feature = (await csjLayer.queryFeatures(query)).features[0];
+    } catch (error) {
+      // The counter moved for nothing, so redraw the selection that still stands.
+      if (version === selectionVersion) {
+        syncSelectedGraphics().catch((syncError) => console.error(syncError));
+      }
+      throw error;
+    }
+
+    // Something else was selected while the CSJ line was read.
+    if (version !== selectionVersion) {
+      return true;
+    }
 
     if (!feature?.geometry) {
+      syncSelectedGraphics().catch((error) => console.error(error));
       return false;
     }
 
@@ -1982,7 +2334,12 @@ require([
 
     render();
     elements.segmentList.querySelector(".csj-row.is-selected")?.scrollIntoView({ block: "nearest" });
-    await syncSelectedGraphics();
+
+    if (!(await syncSelectedGraphics())) {
+      return true;
+    }
+
+    const drawnVersion = selectionVersion;
 
     await view.goTo(feature.geometry.extent.clone().expand(1.4), {
       animate: false,
@@ -1993,6 +2350,16 @@ require([
         left: 120,
       },
     });
+
+    // Some CSJ lines span only a few metres, and goTo ignores maxScale, so it would land at the
+    // deepest zoom; 1:5,000 keeps the roads around the CSJ in view.
+    if (view.scale < 5000) {
+      view.scale = 5000;
+    }
+
+    if (drawnVersion !== selectionVersion) {
+      return true;
+    }
 
     const path = feature.geometry.paths[0];
     const [x, y] = path[Math.floor(path.length / 2)];
@@ -2013,6 +2380,12 @@ require([
     const csj = digits.length === 9 ? state.csjs.find((item) => item.digits === digits) : null;
 
     if (!csj) {
+      // When the CSJ list itself failed, the status line already says so.
+      if (state.csjStatus !== "failed") {
+        state.linkMessage = `No CSJ ${
+          digits.length === 9 ? formatDashedCsj(digits) : requested.trim()
+        } in the FTW list`;
+      }
       return false;
     }
 
@@ -2022,21 +2395,33 @@ require([
     return focusCsj(csj.digits);
   }
 
+  function markCsjsFailed(error) {
+    console.error(error);
+    state.csjStatus = "failed";
+    state.limitsStatus = { dcis: "failed", tracker: "failed" };
+    render();
+  }
+
   async function loadCsjs() {
     const query = csjLayer.createQuery();
     query.where = "1=1";
     query.returnGeometry = false;
-    query.outFields = ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID", "Segment_Label"];
+    query.outFields = ["OBJECTID", "CSJ", "CSJ_Dashed", "Segment_ID"];
     query.orderByFields = ["CSJ_Dashed ASC"];
 
-    const result = await csjLayer.queryFeatures(query);
+    let result;
+
+    try {
+      result = await csjLayer.queryFeatures(query);
+    } catch (error) {
+      markCsjsFailed(error);
+      return;
+    }
 
     state.csjs = result.features.map((feature) => ({
-      objectId: feature.attributes.OBJECTID,
       digits: String(feature.attributes.CSJ ?? "").replace(/\D/g, ""),
       dashed: feature.attributes.CSJ_Dashed || "",
       segmentId: feature.attributes.Segment_ID || "",
-      segmentLabel: feature.attributes.Segment_Label || "",
       dcis: null,
       tracker: null,
       differs: false,
@@ -2049,15 +2434,27 @@ require([
       state.csjsBySegment.set(csj.segmentId, list);
     });
 
+    state.csjStatus = "loaded";
     render();
 
-    // The limits wording comes after the list is on screen; a CSJ row shows only its number until then.
-    loadCsjLimits().catch((error) => console.error(error));
+    // The limits wording comes after the list is on screen; until then a CSJ row says it is loading.
+    loadCsjLimits().catch((error) => {
+      console.error(error);
+      state.limitsStatus = { dcis: "failed", tracker: "failed" };
+      renderSegments();
+    });
   }
 
   // Reads what DCIS and the Project Tracker say for every CSJ in two requests, and marks the CSJs
-  // the two word differently. Case, spacing and punctuation do not count as a difference.
+  // the two word differently. Case, spacing and punctuation do not count as a difference, and a
+  // read that fails is marked as failed, never taken as "no record".
   async function loadCsjLimits() {
+    if (!state.csjs.length) {
+      state.limitsStatus = { dcis: "loaded", tracker: "loaded" };
+      renderSegments();
+      return;
+    }
+
     const inList = state.csjs.map((csj) => `'${csj.digits}'`).join(",");
     const [dcisResult, trackerResult] = await Promise.allSettled([
       queryTxdotRecords(
@@ -2068,9 +2465,18 @@ require([
       queryTxdotRecords(
         TXDOT_TRACKER_URL,
         `CONTROL_SECT_JOB IN (${inList})`,
-        "CONTROL_SECT_JOB,LIMITS_FROM,LIMITS_TO,LAST_PROJ_UPDATE_DT",
+        "CONTROL_SECT_JOB,LIMITS_FROM,LIMITS_TO",
       ),
     ]);
+
+    [dcisResult, trackerResult]
+      .filter((settled) => settled.status === "rejected")
+      .forEach((settled) => console.error(settled.reason));
+
+    state.limitsStatus = {
+      dcis: dcisResult.status === "fulfilled" ? "loaded" : "failed",
+      tracker: trackerResult.status === "fulfilled" ? "loaded" : "failed",
+    };
 
     const byCsj = (settled) =>
       new globalThis.Map(
@@ -2080,29 +2486,13 @@ require([
       );
     const dcis = byCsj(dcisResult);
     const tracker = byCsj(trackerResult);
-
-    // DCIS pads some control-section-job values with spaces, which IN does not match.
-    const missing = state.csjs.filter((csj) => !dcis.has(csj.digits));
-
-    if (dcisResult.status === "fulfilled" && missing.length) {
-      try {
-        const found = await queryTxdotRecords(
-          TXDOT_DCIS_URL,
-          missing.map((csj) => `CONTROL_SECT_JOB LIKE '%${csj.digits}%'`).join(" OR "),
-          "CONTROL_SECT_JOB,LIMITS_FROM,LIMITS_TO",
-        );
-        found.forEach((record) => dcis.set(String(record.CONTROL_SECT_JOB).trim(), record));
-      } catch (error) {
-        console.error(error);
-      }
-    }
+    const bothLoaded = state.limitsStatus.dcis === "loaded" && state.limitsStatus.tracker === "loaded";
 
     const toWording = (record) =>
       record
         ? {
-            from: String(record.LIMITS_FROM ?? "").trim(),
-            to: String(record.LIMITS_TO ?? "").trim(),
-            updated: record.LAST_PROJ_UPDATE_DT,
+            from: cleanLimitPart(record.LIMITS_FROM),
+            to: cleanLimitPart(record.LIMITS_TO),
           }
         : null;
 
@@ -2110,77 +2500,127 @@ require([
       csj.dcis = toWording(dcis.get(csj.digits));
       csj.tracker = toWording(tracker.get(csj.digits));
       csj.differs =
+        bothLoaded &&
         Boolean(wordingOf(csj.dcis) && wordingOf(csj.tracker)) &&
         (normalizeWording(csj.dcis.from) !== normalizeWording(csj.tracker.from) ||
           normalizeWording(csj.dcis.to) !== normalizeWording(csj.tracker.to));
     });
 
-    state.limitsLoaded = true;
     renderSegments();
   }
 
   // Opens the app on one CSJ or one segment from the link: ?csj=0014-16-289, ?segment=IH%2035W%20-%20D
-  // (the segment label) or ?segment=IH0035WD (its Segment_ID). A value that matches nothing leaves
-  // the app as it opens without one.
+  // (the segment label) or ?segment=IH0035WD (its Segment_ID). A value that matches nothing is
+  // named in the status line, and the app opens as it does without a link.
   async function selectFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const requestedCsj = params.get("csj");
+    const requestedCsj = initialParams.get("csj");
 
     if (requestedCsj && (await selectCsjFromUrl(requestedCsj))) {
       return;
     }
 
-    const requested = params.get("segment");
+    const requested = initialParams.get("segment");
 
-    if (!requested) {
-      return;
+    if (requested) {
+      const wanted = requested.trim().toLowerCase();
+      const match = state.segments.find(
+        (segment) =>
+          segment.label.toLowerCase() === wanted || segment.segmentId.toLowerCase() === wanted,
+      );
+
+      if (match) {
+        await selectSegmentOnMap(match);
+        await zoomToSegments([match.objectId]);
+        return;
+      }
+
+      const message = `No segment ${requested.trim()} in the FTW list`;
+      state.linkMessage = state.linkMessage ? `${state.linkMessage}. ${message}` : message;
     }
 
-    const wanted = requested.trim().toLowerCase();
-    const match = state.segments.find(
-      (segment) =>
-        segment.label.toLowerCase() === wanted || segment.segmentId.toLowerCase() === wanted,
-    );
-
-    if (!match) {
-      return;
-    }
-
-    await selectSegmentOnMap(match);
-    await zoomToSegments([match.objectId]);
+    updateListStatus();
   }
 
   elements.searchInput.addEventListener("input", () => {
     state.searchTerm = elements.searchInput.value;
+    state.linkMessage = "";
+    renderSegments({ statusDelay: 400 });
+  });
+
+  elements.differFilter.addEventListener("change", () => {
+    state.onlyDiffering = elements.differFilter.checked;
     renderSegments();
   });
 
-  elements.differFilter.addEventListener("click", () => {
-    state.onlyDiffering = !state.onlyDiffering;
-    renderSegments();
-  });
-
+  // One Clear for everything the list and map are narrowed by: the selection, the search, the
+  // differing-limits filter, the popup and the address.
   elements.clearSelectionButton.addEventListener("click", async () => {
     state.selectedCsj = null;
     state.selectedSegmentIds.clear();
-    render();
-    await syncSelectedGraphics();
+    state.searchTerm = "";
+    elements.searchInput.value = "";
+    state.onlyDiffering = false;
+    state.linkMessage = "";
+    csjPopupToken += 1;
     view.closePopup();
+    roadHighlightLayer.removeAll();
+    render();
+    // Clear disables itself, so keyboard focus moves to the search box rather than being lost.
+    elements.searchInput.focus();
+    await syncSelectedGraphics();
   });
 
   elements.zoomSelectedButton.addEventListener("click", async () => {
     await zoomToSegments(Array.from(state.selectedSegmentIds));
   });
 
+  // The selection lines a click or hover can land on, in the order a click tries them.
+  const selectableLineLayers = [csjLayer, selectedCsjLayer, selectedSegmentsLayer, segmentsLayer];
+
+  function findSegmentForGraphic(graphic) {
+    const segmentId = graphic.attributes?.Segment_ID;
+    const objectId = graphic.attributes?.OBJECTID;
+
+    return (
+      (segmentId && state.segments.find((segment) => segment.segmentId === segmentId)) ||
+      state.segments.find((segment) => segment.objectId === objectId) ||
+      null
+    );
+  }
+
   view.on("click", async (event) => {
+    csjPopupToken += 1;
     view.closePopup();
     roadHighlightLayer.removeAll();
 
-    const csjHit = await view.hitTest(event, { include: [csjLayer, selectedCsjLayer] });
-    const csjGraphic = csjHit.results.find((result) => result.graphic?.attributes?.CSJ_Dashed)?.graphic;
+    // A CSJ line first, then a segment line, then the county and road popups.
+    const lineHit = await view.hitTest(event, { include: selectableLineLayers });
+    const hits = lineHit.results
+      .filter((result) => result.graphic)
+      .map((result) => ({ graphic: result.graphic, layer: result.layer ?? result.graphic.layer }));
 
-    if (csjGraphic) {
-      await showCsjPopup(csjGraphic.attributes, event.mapPoint);
+    const csjHit = hits.find(
+      (hit) => (hit.layer === csjLayer || hit.layer === selectedCsjLayer) && hit.graphic.attributes?.CSJ,
+    );
+
+    if (csjHit) {
+      state.linkMessage = "";
+      const digits = String(csjHit.graphic.attributes.CSJ).replace(/\D/g, "");
+
+      if (!(await focusCsj(digits))) {
+        await showCsjPopup(csjHit.graphic.attributes, event.mapPoint);
+      }
+      return;
+    }
+
+    const segmentHit = hits.find(
+      (hit) => hit.layer === selectedSegmentsLayer || hit.layer === segmentsLayer,
+    );
+    const segment = segmentHit ? findSegmentForGraphic(segmentHit.graphic) : null;
+
+    if (segment) {
+      state.linkMessage = "";
+      await selectSegmentOnMap(segment);
       return;
     }
 
@@ -2198,22 +2638,42 @@ require([
     await showRoadPopup(event.mapPoint);
   });
 
-  view.on("pointer-move", async (event) => {
-    if (!countyBoundaryLayer) {
+  // A pointer over a CSJ, segment or county line shows that it can be clicked. One hit test runs
+  // at a time; moves during it collapse into one more test at the latest position.
+  let hoverPoint = null;
+  let hoverBusy = false;
+
+  async function updateHoverCursor() {
+    if (hoverBusy) {
+      return;
+    }
+
+    hoverBusy = true;
+
+    try {
+      while (hoverPoint) {
+        const point = hoverPoint;
+        hoverPoint = null;
+        const include = [
+          ...selectableLineLayers,
+          countyBoundaryHitLayer || countyBoundaryLayer,
+        ].filter(Boolean);
+        const hitTestResult = await view.hitTest(point, { include });
+
+        if (!hoverPoint) {
+          view.container.style.cursor = hitTestResult.results.length ? "pointer" : "default";
+        }
+      }
+    } catch (error) {
       view.container.style.cursor = "default";
-      return;
+    } finally {
+      hoverBusy = false;
     }
+  }
 
-    const hoverToken = ++countyBoundaryHoverToken;
-    const hitTestResult = await view.hitTest(event, {
-      include: countyBoundaryHitLayer || countyBoundaryLayer,
-    });
-
-    if (hoverToken !== countyBoundaryHoverToken) {
-      return;
-    }
-
-    view.container.style.cursor = hitTestResult.results.length ? "pointer" : "default";
+  view.on("pointer-move", (event) => {
+    hoverPoint = { x: event.x, y: event.y };
+    updateHoverCursor();
   });
 
   view.watch("stationary", syncCountyLabelOverlayWithView);
@@ -2223,12 +2683,21 @@ require([
 
   Promise.all([segmentsLayer.load(), roadsQueryLayer.load(), view.when()])
     .then(loadSegments)
-    .then(() => loadCsjs().catch((error) => console.error(error)))
+    .then(() => loadCsjs().catch(markCsjsFailed))
     .then(initializeCountyBoundaries)
     .then(() => selectFromUrl().catch((error) => console.error(error)))
+    .then(() => {
+      urlReady = true;
+      syncUrl();
+    })
     .catch((error) => {
       console.error(error);
-      elements.segmentList.innerHTML =
-        '<div class="empty-state">The app could not load the ArcGIS services. Check the browser console for details.</div>';
+
+      if (state.segmentsStatus !== "loaded") {
+        state.segmentsStatus = "failed";
+        updateListStatus();
+        elements.segmentList.innerHTML =
+          '<div class="empty-state">The app could not load the ArcGIS services. Check the browser console for details.</div>';
+      }
     });
 });

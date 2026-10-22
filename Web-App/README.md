@@ -41,31 +41,53 @@ python -m http.server 8080
 
 - `?csj=0014-16-289` opens the app on that CSJ: its segment is selected, the map zooms to the CSJ
   and its popup opens. Hyphens are optional.
-- `?segment=IH%2035W%20-%20D` (the segment label) or `?segment=IH0035WD` (its `Segment_ID`)
+- `?segment=IH0035WD` (the `Segment_ID`) or `?segment=IH%2035W%20-%20D` (the segment label)
   opens the app on that segment.
-- A value that matches nothing leaves the app as it opens without a link.
+- The address follows the selection: `?csj=` while a CSJ is chosen, `?segment=<Segment_ID>` while
+  one segment is selected, and the bare address when several or none are, so the address bar can
+  be copied as a link at any time.
+- A link that matches nothing says so in the status line under the search ("No CSJ 0014-16-299 in
+  the FTW list"), and the app opens as it does without a link.
 
 ## Behavior
 
-- Click a segment row or map segment to focus the map on that segment.
-- Use the checkboxes to keep multiple segments selected.
-- Click `Zoom selected` to fit all selected segments.
-- A segment row that has CSJs shows a small "n CSJs" arrow. Open it to list its CSJs, each with
-  the limits DCIS gives for it. Click a CSJ to select its segment, draw just that CSJ in dark blue,
-  zoom to it and open its popup.
-- The search box finds segments and CSJs. A CSJ number (hyphens optional, four digits or more) or
-  any part of a CSJ's limits wording opens the segment it belongs to and lists the matching CSJs.
-- A CSJ whose DCIS and Project Tracker limits are worded differently (case, spacing and punctuation
-  aside) carries a "Tracker differs" flag and shows the Tracker's wording beneath. The
-  "Limits differ between TxDOT sources" button lists only those CSJs.
-- Click a CSJ line on the map to see the limits TxDOT's DCIS layer and Project Tracker each give
-  for it, next to the limits of its segment. Both are read live from TxDOT.
-- The map opens showing only what is selected: the segment in red and, over it, the CSJs of that
-  segment in blue (or just the chosen CSJ). The "Map lines" box at the bottom left names the
-  selection and has a tick box for each of the four sets of lines: the selected segments, all
-  segments, the selected CSJs and all CSJs. Untick one to look at the other alone.
-- Click a TxDOT roadway on the map to view the roadway name.
-- Click a county boundary line to view the county boundary popup.
+The app answers four questions: what are a segment's limits, which CSJs lie inside it, where
+those CSJs are on the map, and how TxDOT words each CSJ's limits in DCIS and in the Project
+Tracker.
+
+- Tick a segment in the list to select it: the map draws it and zooms to it. Tick more than one
+  to keep several selected; `Zoom to selection` fits them all.
+- Each segment row shows its limits, or "No segment limits recorded" when the segment has none.
+  A row with CSJs has an "n CSJs" button that opens the list of its CSJs.
+- Each CSJ row shows two lines: `DCIS:` with DCIS's From and To, and `Tracker:` with the Project
+  Tracker's wording. The Tracker line reads "same" when the two agree (case, spacing and
+  punctuation aside), "no record" when the Tracker has no row for the CSJ, or its own wording when
+  it differs, with the differing half in bold and a "Limits differ" flag on the CSJ number. A lone
+  "." in a wording counts as empty. While TxDOT's layers are being read the row says so, and a
+  read that fails says "not loaded" rather than looking like an answer.
+- Click a CSJ row to select it: its segment is selected, the map draws just that CSJ and zooms to
+  it (no closer than 1:5,000), and its popup opens.
+- The search box finds segments by their name or limits, and CSJs by their limits wording. A CSJ
+  number (digits and hyphens only, three digits or more) also finds CSJs by number. A segment
+  whose CSJs match opens by itself and lists only the matching CSJs. The status line under the
+  search counts what the list shows ("3 segments, 2 CSJs match '121'").
+- The `Only CSJs whose limits differ` checkbox, with its count, lists only the CSJs whose DCIS and
+  Tracker wordings differ. It reads "unavailable" when either TxDOT layer could not be read.
+- `Clear` resets the selection, the search, the differing-limits filter, the popup and the
+  address.
+- Click a CSJ line on the map to select that CSJ, as from its row. Click a segment line to select
+  that one segment; its name goes into the search box, so the list shows it. The pointer becomes a
+  hand over the lines that can be clicked.
+- The CSJ popup shows the segment the CSJ lies on and a From/To table: DCIS, Project Tracker (with
+  its last update date) and the segment's own limits. Both TxDOT wordings are read live.
+- The map lines: the selected segment is a solid wine line; the CSJs of the selected segment (or
+  the one chosen CSJ) are dark blue lines with a white edge inside it. `All segments` (dashed
+  wine) and `All CSJs` (dashed blue) are off when the app opens. The "Map lines" box at the bottom
+  left names the selection and has a tick box for each of the four sets of lines; click a line's
+  name or box to show or hide it.
+- Click a TxDOT roadway on the map to view its name (the road is drawn black and dashed). Click a
+  county boundary line to view the county boundary popup.
 - The automation helpers used by capture tooling live in `app.js`, including
   `__waitForSegments()`, `__selectCorridorSegments()`,
-  `__navigateAndCapture()`, and `__queryRoadsNearPoint()`.
+  `__navigateAndCapture()`, and `__queryRoadsNearPoint()`. The capture helpers hide the CSJ lines
+  while they take a screenshot and put them back as they were.

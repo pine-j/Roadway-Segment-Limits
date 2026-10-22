@@ -11,17 +11,16 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://js.arcgis.com/4.32/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./styles.css?v=2026-10-21-2" />
+    <link rel="stylesheet" href="./styles.css?v=2026-10-21-3" />
     <script src="https://js.arcgis.com/4.32/"></script>
   </head>
   <body>
     <div class="app-shell">
       <aside class="panel filters-panel">
         <div class="panel-header">
-          <p class="eyebrow">FTW Dashboard</p>
-          <h1>Filter segments</h1>
+          <h1>FTW Segment Explorer</h1>
           <p class="panel-copy">
-            Choose a highway system to narrow the FTW segment list.
+            Pick a segment to read its limits and CSJs. Pick a CSJ to see it on the map and both TxDOT wordings.
           </p>
         </div>
         <div class="category-list" id="category-list" aria-label="Highway system filters"></div>
@@ -38,7 +37,7 @@
 
         <div class="toolbar">
           <label class="search-field" for="segment-search">
-            <span class="sr-only">Search segments</span>
+            <span class="sr-only">Search segments and CSJs</span>
             <input
               id="segment-search"
               type="search"
@@ -47,15 +46,18 @@
             />
           </label>
 
-          <div class="toolbar-actions">
-            <button id="clear-selection" class="ghost-button" type="button">Clear</button>
-            <button id="zoom-selected" class="primary-button" type="button">Zoom selected</button>
+          <div class="status-row">
+            <p id="list-status" class="list-status" role="status">Loading segments...</p>
+            <label class="differ-check">
+              <input id="differ-filter" type="checkbox" disabled />
+              <span id="differ-label">Only CSJs whose limits differ (loading)</span>
+            </label>
           </div>
 
-          <button id="differ-filter" class="chip-button" type="button" aria-pressed="false" disabled>
-            <span>Limits differ between TxDOT sources</span>
-            <span class="count-pill" id="differ-count">...</span>
-          </button>
+          <div class="toolbar-actions">
+            <button id="clear-selection" class="ghost-button" type="button" disabled>Clear</button>
+            <button id="zoom-selected" class="primary-button" type="button" disabled>Zoom to selection</button>
+          </div>
         </div>
 
         <div class="summary-strip">
@@ -69,24 +71,16 @@
           </div>
         </div>
 
-        <div class="segment-list" id="segment-list" aria-live="polite"></div>
+        <div class="segment-list" id="segment-list">
+          <div class="empty-state">Loading segments...</div>
+        </div>
       </section>
 
       <main class="map-panel">
-        <div class="map-heading">
-          <div>
-            <p class="eyebrow">Map</p>
-            <h2>FTW Segments + TxDOT Roadways</h2>
-          </div>
-          <div class="map-hint">
-            Selected FTW segments draw on top of the TxDOT road network. Click a roadway or county boundary to highlight it and view its name.
-          </div>
-        </div>
-
         <div id="viewDiv" class="map-view" aria-label="Map view"></div>
       </main>
     </div>
 
-    <script src="./app.js?v=2026-10-21-2"></script>
+    <script src="./app.js?v=2026-10-21-3"></script>
   </body>
 </html>

@@ -5,7 +5,7 @@
   --panel-muted: #eef2f4;
   --border: rgba(36, 50, 63, 0.14);
   --text: #19232d;
-  --muted: #5f6f7d;
+  --muted: #4f5d6a;
   --accent: #9e3252;
   --accent-dark: #7d203d;
   --accent-soft: rgba(158, 50, 82, 0.12);
@@ -40,6 +40,12 @@ body {
 button,
 input {
   font: inherit;
+}
+
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .sr-only {
@@ -80,8 +86,7 @@ input {
   overflow: hidden;
 }
 
-.panel-header,
-.map-heading {
+.panel-header {
   padding: 22px 22px 16px;
 }
 
@@ -95,8 +100,7 @@ input {
 }
 
 .panel-header h1,
-.panel-header h2,
-.map-heading h2 {
+.panel-header h2 {
   margin: 0;
   font-size: 1.35rem;
   line-height: 1.1;
@@ -111,7 +115,8 @@ input {
 .category-list,
 .segment-list {
   padding: 0 16px 18px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .category-list {
@@ -178,12 +183,57 @@ input {
   background: rgba(255, 255, 255, 0.88);
   padding: 0.82rem 1rem;
   color: var(--text);
-  outline: none;
 }
 
 .search-field input:focus {
   border-color: rgba(11, 107, 122, 0.4);
   box-shadow: 0 0 0 4px rgba(11, 107, 122, 0.12);
+}
+
+/* The status line under the search, with the differing-limits checkbox beside it. */
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+
+.list-status {
+  margin: 0;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.differ-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.differ-check input {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin: 0;
+  accent-color: var(--focus);
+  cursor: pointer;
+}
+
+.differ-check:has(input:disabled) {
+  color: var(--muted);
+  cursor: default;
+}
+
+.differ-check input:disabled {
+  cursor: default;
 }
 
 .toolbar-actions {
@@ -307,6 +357,10 @@ input {
   line-height: 1.3;
 }
 
+.segment-limits.is-missing {
+  font-style: italic;
+}
+
 /* `Segment_Length_Mi`, right-aligned so it reads as a column down the list. */
 .segment-length {
   margin-left: auto;
@@ -328,22 +382,8 @@ input {
 
 .map-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
-}
-
-.map-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.map-hint {
-  max-width: 320px;
-  color: var(--muted);
-  font-size: 0.92rem;
-  line-height: 1.4;
 }
 
 .map-view {
@@ -434,6 +474,54 @@ input {
   margin-top: 8px;
 }
 
+/* The CSJ popup: the segment it lies on, then a From/To table of the two TxDOT wordings and the
+   segment's own limits. */
+.csj-popup {
+  padding-top: 4px;
+}
+
+.csj-popup p {
+  margin: 0 0 8px;
+  color: var(--muted);
+}
+
+.csj-popup-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.csj-popup-table th,
+.csj-popup-table td {
+  padding: 4px 6px;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.csj-popup-table thead th,
+.csj-popup-table thead td {
+  border-top: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.csj-popup-table tbody th {
+  width: 5.4rem;
+  padding-left: 0;
+  font-weight: 600;
+}
+
+.csj-popup-date {
+  display: block;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 400;
+}
+
 .map-legend {
   min-width: 220px;
   max-width: 300px;
@@ -457,84 +545,54 @@ input {
   line-height: 1.3;
 }
 
-.map-legend-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.map-legend-table th,
-.map-legend-table td {
-  padding: 3px 0;
-  font-weight: 600;
-  text-align: center;
-}
-
-.map-legend-table th[scope="row"] {
+/* Each legend line is one label: tick box, the line as the map draws it, and its name. */
+.map-legend-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  text-align: left;
-}
-
-.map-legend-table th[scope="col"] {
-  padding-left: 10px;
-  color: var(--muted);
-  font-size: 0.72rem;
+  min-height: 28px;
   font-weight: 600;
+  cursor: pointer;
 }
 
-.map-legend-table input {
-  width: 16px;
-  height: 16px;
+.map-legend-row input {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin: 0;
   accent-color: var(--focus);
   cursor: pointer;
 }
 
 .map-legend-swatch {
   flex: none;
-  width: 26px;
-  height: 0;
-  border-top: 5px solid;
-  border-radius: 3px;
+  width: 28px;
+  border-radius: 2px;
 }
 
-.map-legend-swatch.segment {
-  border-color: rgb(158, 50, 82);
+.map-legend-swatch.selected-segment {
+  height: 6px;
+  background: rgb(158, 50, 82);
 }
 
-.map-legend-swatch.csj {
-  border-color: rgb(0, 90, 200);
-  border-top-width: 3px;
+.map-legend-swatch.selected-csj {
+  height: 3px;
+  background: rgb(0, 60, 143);
+  box-shadow:
+    0 0 0 1px #ffffff,
+    0 0 0 2px rgba(25, 35, 45, 0.35);
 }
 
-.chip-button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--panel-strong);
-  color: var(--text);
-  padding: 0.5rem 0.5rem 0.5rem 0.9rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
+.map-legend-swatch.all-segments {
+  height: 3px;
+  background: repeating-linear-gradient(90deg, rgb(158, 50, 82) 0 5px, transparent 5px 9px);
 }
 
-.chip-button[aria-pressed="true"] {
-  background: var(--accent-soft);
-  border-color: rgba(158, 50, 82, 0.4);
+.map-legend-swatch.all-csjs {
+  height: 2px;
+  background: repeating-linear-gradient(90deg, rgb(43, 108, 196) 0 5px, transparent 5px 9px);
 }
 
-.chip-button:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.chip-button:focus-visible,
 .csj-toggle:focus-visible,
 .csj-row:focus-visible {
   outline: 2px solid var(--focus);
@@ -548,24 +606,29 @@ input {
 
 .csj-toggle {
   align-self: flex-start;
-  margin: 0 0 2px 40px;
+  min-height: 32px;
+  margin: 0 0 2px 38px;
   border: 0;
   border-radius: 8px;
   background: none;
-  padding: 2px 6px;
+  padding: 6px 8px;
   color: var(--focus);
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
 }
 
-.csj-toggle:hover:not(:disabled) {
+.csj-toggle:hover {
   background: rgba(11, 107, 122, 0.08);
 }
 
-.csj-toggle:disabled {
+/* The count of a segment the search opened: plain text, since it cannot be closed. */
+.csj-count {
+  margin: 0 0 2px 46px;
+  padding: 2px 0;
   color: var(--muted);
-  cursor: default;
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .csj-toggle-arrow {
@@ -617,7 +680,7 @@ input {
 }
 
 .csj-row.is-selected {
-  background: rgba(0, 90, 200, 0.12);
+  background: rgba(0, 60, 143, 0.12);
 }
 
 .csj-number {
@@ -636,11 +699,21 @@ input {
   font-weight: 700;
 }
 
-.csj-limits,
-.csj-tracker {
-  font-size: 0.78rem;
+/* "DCIS: ..." and "Tracker: ...": the source in muted text, the limits in body text. */
+.csj-line {
+  color: var(--text);
+  font-size: 0.82rem;
   line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.csj-line.is-note,
+.csj-source {
   color: var(--muted);
+}
+
+.csj-line strong {
+  font-weight: 700;
 }
 
 @media (max-width: 1300px) {
@@ -649,6 +722,8 @@ input {
   }
 }
 
+/* Narrow screens: one column. The segments panel keeps to 45% of the screen and scrolls inside
+   itself, vertically only, so the map below it keeps at least 55%. */
 @media (max-width: 1080px) {
   body {
     height: auto;
@@ -657,10 +732,11 @@ input {
 
   .app-shell {
     height: auto;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      "filters segments"
-      "map map";
+      "filters"
+      "segments"
+      "map";
     overflow: visible;
   }
 
@@ -668,29 +744,47 @@ input {
     grid-area: filters;
   }
 
+  /* The highway systems become a wrapped row of small buttons, so they do not push the map
+     screens below the fold. */
+  .category-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    overflow: visible;
+    padding-bottom: 14px;
+  }
+
+  .category-button {
+    width: auto;
+    padding: 6px 10px;
+    gap: 8px;
+  }
+
+  /* The whole panel scrolls as one, so the list is not squeezed under the header and toolbar. */
   .segments-panel {
     grid-area: segments;
+    max-height: 45vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .segments-panel .segment-list {
+    flex: none;
+    overflow: visible;
   }
 
   .map-panel {
     grid-area: map;
-    min-height: 68vh;
+    min-height: 55vh;
   }
 }
 
 @media (max-width: 760px) {
   .app-shell {
     padding: 12px;
-    height: auto;
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "filters"
-      "segments"
-      "map";
   }
 
-  .panel-header,
-  .map-heading {
+  .panel-header {
     padding: 18px 18px 14px;
   }
 
@@ -702,16 +796,7 @@ input {
     padding-right: 14px;
   }
 
-  .map-heading {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
   .toolbar-actions {
     flex-wrap: wrap;
-  }
-
-  .map-panel {
-    min-height: 60vh;
   }
 }
